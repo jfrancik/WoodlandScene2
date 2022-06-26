@@ -348,3 +348,9 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+### 3DGL SPECIFIC: 3D models always included
+!**/models/**
+
+### 3DGL SPECIFIC: user file to maintain Debugging Environment
+!*.vcxproj.user
