@@ -1,0 +1,111 @@
+/*********************************************************************************
+3DGL 3D Graphics Library created by Jarek Francik for Kingston University students
+Version 3.0 - June 2022
+Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
+*********************************************************************************/
+
+#include <3dgl/Logger.h>
+
+#include <iostream>
+#include <map>
+#include <set>
+
+#include <GL/glut.h>
+
+using namespace std;
+using namespace _3dgl;
+
+CLogger::CLogger()
+{
+	operator[](_M3DGL_SUCCESS) = "{}";
+	operator[](M3DGL_SUCCESS_CREATED) = "created successfully.";
+	operator[](M3DGL_SUCCESS_SRC_CODE_LOADED) = "source code loaded.";
+	operator[](M3DGL_SUCCESS_COMPILED) = "compiled successfully.";
+	operator[](M3DGL_SUCCESS_LINKED) = "linked successfully.";
+	operator[](M3DGL_SUCCESS_ATTACHED) = "has successfully attached a {}.";
+	operator[](M3DGL_SUCCESS_ATTRIB_FOUND) = "attribute location found: {} = {}.";
+	operator[](M3DGL_SUCCESS_UNIFORM_FOUND) = "uniform location found: {} = {}.";
+	operator[](M3DGL_SUCCESS_VERIFICATION) = "verification result: {}.";
+	operator[](M3DGL_SUCCESS_LOADED) = "loaded from: {}.";
+	operator[](M3DGL_SUCCESS_BONES_FOUND) = "{}: bones found: {}.";
+	operator[](M3DGL_SUCCESS_IMPORTING_FILE) = "Importing file: {}.";
+
+	operator[](_M3DGL_WARNING_GENERIC) = "{}";
+	operator[](M3DGL_WARNING_UNIFORM_NOT_FOUND) = "uniform location not found: {}.";
+	operator[](M3DGL_WARNING_UNIFORM_NOT_REGISTERED) = "unregistered uniform used: {}.";
+	operator[](M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED) = "is providing vertex coordinates but vertex buffer is not implemented in the current shader program. Consider another shader program.";
+	operator[](M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED) = "is providing normal coordinates but normal buffer is not implemented in the current shader program. Consider another shader program.";
+	operator[](M3DGL_WARNING_VERTEX_BUFFER_MISSING) = "is missing vertex buffer information.";
+	operator[](M3DGL_WARNING_NORMAL_BUFFER_MISSING) = "is missing normal buffer information.";
+	operator[](M3DGL_WARNING_TEXTURE_COORDS_BUFFER_MISSING) = "is missing texture coordinate buffer information.";
+	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is missing compatible texture coordinates.";
+	operator[](M3DGL_WARNING_TANGENT_BUFFER_MISSING) = "is missing tangent buffer information.";
+	operator[](M3DGL_WARNING_BITANGENT_BUFFER_MISSING) = "is missing bitangent buffer information.";
+	operator[](M3DGL_WARNING_COLOR_BUFFER_MISSING) = "is missing color buffer information.";
+	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "maximum number of bones per vertex exceeded.";
+	operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_1_0) = "some bone weights do not sum up to 1.0.";
+	operator[](M3DGL_WARNING_BONE_BUFFER_MISSING) = "is missing bone information.";
+	operator[](M3DGL_WARNING_SKINNING_NOT_IMPLEMENTED) = "comes with animations but skinning is not implemented.";
+	operator[](M3DGL_WARNING_CANNOT_LOAD_FROM) = "couldn't load from: {}.";
+
+	operator[](_M3DGL_ERROR_GENERIC) = "{}";
+	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {} :\n\r    Sending value of {} but expected was {}.";
+	operator[](M3DGL_ERROR_AI) = "Internal ASSIMP error whilst loading a model: {}";
+	operator[](M3DGL_ERROR_COMPILATION) = "compilation error: {}";
+	operator[](M3DGL_ERROR_LINKING) = "linking error: {}";
+	operator[](M3DGL_ERROR_WRONG_SHADER) = "creation error. Wrong type of shader.";
+	operator[](M3DGL_ERROR_NO_SOURCE_CODE) = "creation error. Source code not provided.";
+	operator[](M3DGL_ERROR_CREATION) = "creation error. Reason unknown.";
+	operator[](M3DGL_ERROR_UNKNOWN_COMPILATION_ERROR) = "unknown compilation error";
+	operator[](M3DGL_ERROR_SHADER_NOT_CREATED) = "cannot attach shader: shader not created.";
+	operator[](M3DGL_ERROR_PROGRAM_NOT_CREATED) = "shader program not created.";
+	operator[](M3DGL_ERROR_UNKNOWN_LINKING_ERROR) = "unknown linking error";
+}
+
+CLogger& CLogger::getInstance()
+{
+	static CLogger inst;
+	return inst;
+}
+
+std::string& CLogger::operator[](const unsigned i)
+{
+	static std::map<unsigned, std::string> msgs;
+	return msgs[i];
+}
+
+bool CLogger::_log(unsigned nCode, std::string name, std::string message)
+{
+	int nSeverity = 0;
+	if (nCode >= _M3DGL_WARNING_GENERIC)
+		nSeverity++;
+	if (nCode >= _M3DGL_ERROR_GENERIC)
+		nSeverity++;
+
+	string msg;
+	switch (nSeverity)
+	{
+	case 0: msg = std::format("{} {}", name, message); break;
+	case 1: msg = std::format("Warning {}: {} {}", nCode, name, message); break;
+	case 2: msg = std::format("*** Error {}: {} {}", nCode, name, message); break;
+	}
+
+	static std::set<std::string> errlookup;	// used to prevent displaying the same message twice
+	if (errlookup.find(msg) == errlookup.end())
+	{
+		// only display each message once
+
+		errlookup.insert(msg);
+
+		CONSOLE_SCREEN_BUFFER_INFO Info;
+		GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info);
+		switch (nSeverity)
+		{
+		case 1: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN); break;
+		case 2: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_INTENSITY); break;
+		}
+		cout << msg << endl;
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), Info.wAttributes);
+	}
+	return (nSeverity <= 1);
+}
