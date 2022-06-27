@@ -57,100 +57,100 @@ freely, subject to the following restrictions:
 
 namespace _3dgl
 {
+	class C3dglProgram;
 
-class MY3DGL_API C3dglModel : public C3dglObject
-{
-	const aiScene *m_pScene;
-	std::vector<C3dglMESH> m_meshes;
-	std::vector<C3dglMAT> m_materials;
-	std::string m_name;
-
-	unsigned m_maskEnabledBufData;
-
-	// bone & animation data
-	struct ANIMATION
+	class MY3DGL_API C3dglModel : public C3dglObject
 	{
-		std::map<const aiNode*, std::pair<size_t, size_t> > m_lookUp;
-		aiAnimation* m_pAnim;
-	};
-	std::vector<ANIMATION> m_animations;
-	std::vector<C3dglModel*> m_auxModels;			// used by loadAnimations(pFile)
-	std::map<std::string, size_t> m_mapBones;		// map of bone names
-	std::vector<std::string> m_vecBoneNames;		// vector of bone names
-	std::vector<aiMatrix4x4> m_vecBoneOffsets;		// vector of bone offsets
-	aiMatrix4x4 m_globInvT;
+		const aiScene *m_pScene;
+		std::vector<C3dglMESH> m_meshes;
+		std::vector<C3dglMAT> m_materials;
+		std::string m_name;
 
-	friend struct C3dglMESH;
+		// shader-related data
+		C3dglProgram* m_pProgram;				// program responsible for loading the model; NULL is fixed pipeline
+		GLuint m_attribId[ATTR_LAST];			// attrib values read from the shader program at the load time
 
-public:
-	C3dglModel() : C3dglObject()			{ m_pScene = NULL; m_maskEnabledBufData = NULL;  }
-	~C3dglModel()							{ destroy(); }
+		// bone & animation data
+		struct ANIMATION
+		{
+			std::map<const aiNode*, std::pair<size_t, size_t> > m_lookUp;
+			aiAnimation* m_pAnim;
+		};
+		std::vector<ANIMATION> m_animations;
+		std::vector<C3dglModel*> m_auxModels;			// used by loadAnimations(pFile)
+		std::map<std::string, size_t> m_mapBones;		// map of bone names
+		std::vector<std::string> m_vecBoneNames;		// vector of bone names
+		std::vector<aiMatrix4x4> m_vecBoneOffsets;		// vector of bone offsets
+		aiMatrix4x4 m_globInvT;
 
-	const aiScene *GetScene()				{ return m_pScene; }
+		friend struct C3dglMESH;
 
-	// load a model from file
-	bool load(const char* pFile, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
-	// create a model from AssImp handle - useful if you are using AssImp directly
-	void create(const aiScene *pScene);
-	// create material information and load textures from MTL file - must be preceded by either load or create
-	void loadMaterials(const char* pDefTexPath = NULL);
-	// load animations. By default loads animations from the current model. 
-	// Any other model must be structurally compatible. Returns number of animations successfully loaded.
-	unsigned loadAnimations();
-	unsigned loadAnimations(C3dglModel* pCompatibleModel);
-	unsigned loadAnimations(const char* pFile, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
-	// destroy the model
-	void destroy();
+	public:
+		C3dglModel();
+		~C3dglModel()							{ destroy(); }
 
-	// call before load - to enable buffer binary data access - see C3dglMesh::getBufferData
-	void enableBufData(ATTRIB_STD bufId, bool bEnable = true);
+		const aiScene *GetScene()				{ return m_pScene; }
 
-	size_t getMeshCount()					{ return m_meshes.size(); }
-	C3dglMESH *getMesh(unsigned i)			{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
-	size_t getMaterialCount()				{ return m_materials.size(); }
-	C3dglMAT *getMaterial(size_t i)		{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
+		// load a model from file
+		bool load(const char* pFile, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
+		// create a model from AssImp handle - useful if you are using AssImp directly
+		void create(const aiScene *pScene);
+		// create material information and load textures from MTL file - must be preceded by either load or create
+		void loadMaterials(const char* pDefTexPath = NULL);
+		// load animations. By default loads animations from the current model. 
+		// Any other model must be structurally compatible. Returns number of animations successfully loaded.
+		unsigned loadAnimations();
+		unsigned loadAnimations(C3dglModel* pCompatibleModel);
+		unsigned loadAnimations(const char* pFile, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
+		// destroy the model
+		void destroy();
 
-	// Rendering
-	void render(glm::mat4 matrix);					// render the entire model
-	void render(unsigned iNode, glm::mat4 matrix);	// render one of the parent nodes
-	unsigned getParentNodeCount()			{ return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; }
-	void renderNode(aiNode* pNode, glm::mat4 m);	// render a node
+		size_t getMeshCount()					{ return m_meshes.size(); }
+		C3dglMESH *getMesh(unsigned i)			{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
+		size_t getMaterialCount()				{ return m_materials.size(); }
+		C3dglMAT *getMaterial(size_t i)		{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
 
-	// Deprecated rendering functions - used old-style OGL GL_MODELVIEW_MATRIX matrix
-	//void render();									// DEPRECATED render the entire model
-	//void render(unsigned iNode);					// DEPRECATED render one of the main nodes
+		// Rendering
+		void render(glm::mat4 matrix);					// render the entire model
+		void render(unsigned iNode, glm::mat4 matrix);	// render one of the parent nodes
+		unsigned getParentNodeCount()			{ return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; }
+		void renderNode(aiNode* pNode, glm::mat4 m);	// render a node
+
+		// Deprecated rendering functions - used old-style OGL GL_MODELVIEW_MATRIX matrix
+		//void render();									// DEPRECATED render the entire model
+		//void render(unsigned iNode);					// DEPRECATED render one of the main nodes
 
 
-	// Advanced functions
-	// retrieves the transform associated with the given node. If (bRecursive) the transform is recursively combined with parental transform(s)
-	void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true);
+		// Advanced functions
+		// retrieves the transform associated with the given node. If (bRecursive) the transform is recursively combined with parental transform(s)
+		void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true);
 	
-	// Bone system functions
-	size_t getBoneCount()									{ return m_mapBones.size(); }
-	std::string getBoneName(size_t i)						{ return i < getBoneCount() ? m_vecBoneNames[i] : ""; }
-	bool getBone(std::string boneName);						// true if bone exists in the model
-	bool getBone(std::string boneName, size_t& id);			// as above, additionally returns the bone id
-	bool getOrAddBone(std::string boneName, size_t& id);	// as above, creates a new bone if doesn't exist
+		// Bone system functions
+		size_t getBoneCount()									{ return m_mapBones.size(); }
+		std::string getBoneName(size_t i)						{ return i < getBoneCount() ? m_vecBoneNames[i] : ""; }
+		bool getBone(std::string boneName);						// true if bone exists in the model
+		bool getBone(std::string boneName, size_t& id);			// as above, additionally returns the bone id
+		bool getOrAddBone(std::string boneName, size_t& id);	// as above, creates a new bone if doesn't exist
 
-	bool hasAnimations()					{ return m_animations.size() > 0;  }
-	size_t getAnimCount()					{ return m_animations.size(); }
-	bool hasAnim(unsigned iAnim)			{ return iAnim < getAnimCount(); }
-	std::string GetAnimName(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mName.data : NULL; }
-	double GetAnimDuration(unsigned iAnim)	{ return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mDuration : 0; }
-	double GetAnimTicksPerSecond(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mTicksPerSecond : 0; }
-	// retrieve bone transformations for the given time point. The vector transforms will be cleared and resized to reflect the actual number of bones
-	void getAnimData(unsigned iAnim, float time, std::vector<float>& transforms);
+		bool hasAnimations()					{ return m_animations.size() > 0;  }
+		size_t getAnimCount()					{ return m_animations.size(); }
+		bool hasAnim(unsigned iAnim)			{ return iAnim < getAnimCount(); }
+		std::string GetAnimName(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mName.data : ""; }
+		double GetAnimDuration(unsigned iAnim)	{ return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mDuration : 0; }
+		double GetAnimTicksPerSecond(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mTicksPerSecond : 0; }
+		// retrieve bone transformations for the given time point. The vector transforms will be cleared and resized to reflect the actual number of bones
+		void getAnimData(unsigned iAnim, float time, std::vector<float>& transforms);
 
-	// Bounding Box functions
-	void getBB(aiVector3D BB[2]);
-	void getBB(unsigned iNode, aiVector3D BB[2]);
+		// Bounding Box functions
+		void getBB(aiVector3D BB[2]);
+		void getBB(unsigned iNode, aiVector3D BB[2]);
 
-	std::string getName();
+		std::string getName();
 
-private:
-	bool getBBNode(aiNode* pNode, aiVector3D BB[2], aiMatrix4x4* trafo);
-	void readNodeHierarchy(ANIMATION &animation, float time, const aiNode* pNode, const aiMatrix4x4 &t, std::vector<float> &transforms);
-};
+	private:
+		bool getBBNode(aiNode* pNode, aiVector3D BB[2], aiMatrix4x4* trafo);
+		void readNodeHierarchy(ANIMATION &animation, float time, const aiNode* pNode, const aiMatrix4x4 &t, std::vector<float> &transforms);
+	};
 
 }; // namespace _3dgl
 

@@ -54,48 +54,54 @@ namespace _3dgl
 		// VAO (Vertex Array Object) id
 		GLuint m_idVAO;
 
-		// Buffers
-		struct MY3DGL_API BUFFER
-		{
-			GLuint m_id;			// buffer id (as produced by glGenBuffers)
-			void *m_pData;			// local copy of buffer data (only available if enabled in C3dglMesh::create)
-			size_t m_num, m_size;	// parameters of the buffer data (only valid when m_pData available)
-
-			BUFFER();
-
-			void populate(size_t size, size_t num, const void* pData, bool bStoreLocally = false, GLenum target = GL_ARRAY_BUFFER, GLenum usage = GL_STATIC_DRAW);
-			void getData(void** p, size_t& size, size_t& num);
-			void release();
-		} m_buf[ATTR_LAST], m_bufIndex;
+		// Attribute Buffer Ids
+		GLuint m_id[ATTR_LAST];
+		GLuint mIndexId;	// index buffer id
 
 		// number of elements to draw (size of index buffer)
 		GLsizei m_indexSize;
 
-		// number of texture UV coords (2 or 3 implemented)
-		unsigned m_nUVComponents;
-
 		// Material Index - points to the main m_materials collection
 		size_t m_nMaterialIndex;
 		
-		// Bounding Box (experimental feature)
-		glm::vec3 bb[2];
-		glm::vec3 centre;
+		// Bounding Volume (experimental feature)
+		glm::vec3 m_bound1, m_bound2;
+		glm::vec3 m_centre;
+	
+	protected:
+		unsigned getBuffers(const aiMesh* pMesh, GLuint attribId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
+		unsigned getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t *indSize);
+		void cleanUp(void** attrData, void *indexData);		// call after getBuffers well data no longer required
+		void setupBoundingVolume(const aiMesh* pMesh);
 
 	public:
 		C3dglMESH(C3dglModel* pOwner = NULL);
+		
+		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
+		void create(const aiMesh *pMesh, GLuint attribId[ATTR_LAST]);
 
-		void create(const aiMesh *pMesh, unsigned maskEnabledBufData = 0);
-		void destroy();
+		// Create a mesh using ASSIMP data - to be used with the fixed pipeline only!
+		void create(const aiMesh* pMesh);
+
+		// Render the mesh
 		void render();
 
+		// Delete all buffer data - typically doesn't need to be called
+		void destroy();
+
+		// Using ASSIMP data, read attribute or index buffer data. A binary buffer will be allocated and a pointer stored in *ppData, 
+		// *indSize will be filled with the element size and the function returns number of elements (0 if data unavailable).
+		// The retuen value is also: number of vertices for getAttrData, number of indices for getIndexData.
+		unsigned getAttrData(const aiMesh* pMesh, enum ATTRIB_STD attr, void** ppData, size_t* indSize);
+		unsigned getIndexData(const aiMesh* pMesh, void** ppData, size_t* indSize);
+
+		// Material functions
 		C3dglMAT *getMaterial();
 		C3dglMAT *createNewMaterial();
 
-		// get buffer binary data - call C3dglModel::enableBufferData before loading!
-		void getBufferData(ATTRIB_STD bufId, void **p, size_t &size, size_t &num)	{ m_buf[bufId].getData(p, size, num); }
-		
-		glm::vec3 *getBB()			{ return bb; }
-		glm::vec3 getCentre()		{ return centre; }
+		// Bounding volume and geometrical centre
+		void getBoundingVol(glm::vec3& bbmin, glm::vec3& bbmax) { bbmin = m_bound1; bbmax = m_bound2;  }
+		glm::vec3 getCentre()		{ return m_centre; }
 	
 		std::string getName();
 	};

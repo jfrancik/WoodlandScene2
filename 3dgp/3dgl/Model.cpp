@@ -24,6 +24,13 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 using namespace std;
 using namespace _3dgl;
 
+C3dglModel::C3dglModel() : C3dglObject() 
+{ 
+	m_pScene = NULL; 
+	m_pProgram = 0;
+}
+
+
 bool C3dglModel::load(const char* pFile, unsigned int flags)
 {
 	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
@@ -51,12 +58,32 @@ void __createMap(const aiNode* pNode, std::map<std::string, const aiNode*>& map)
 
 void C3dglModel::create(const aiScene* pScene)
 {
+	// Find the Current Program
+	m_pProgram = C3dglProgram::GetCurrentProgram();
+
+	// Store the shader program attribute values
+	if (m_pProgram)
+		for (unsigned attrib = ATTR_VERTEX; attrib < ATTR_LAST; attrib++)
+			m_attribId[attrib] = m_pProgram->GetAttribLocation((ATTRIB_STD)attrib);
+
+	// Generate warnings
+		// Possible warnings...
+	if (m_attribId[ATTR_VERTEX] == (GLuint)-1)
+		log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
+	if (m_attribId[ATTR_NORMAL] == (GLuint)-1)
+		log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
+	if (m_attribId[ATTR_BONE_ID] != (GLuint)-1 && m_attribId[ATTR_BONE_WEIGHT] == (GLuint)-1)
+		log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
+	if (m_attribId[ATTR_BONE_ID] == (GLuint)-1 && m_attribId[ATTR_BONE_WEIGHT] != (GLuint)-1)
+		log(M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED);
+
+
 	// create meshes
 	m_pScene = pScene;
 	m_meshes.resize(m_pScene->mNumMeshes, C3dglMESH(this));
 	aiMesh** ppMesh = m_pScene->mMeshes;
 	for (C3dglMESH& mesh : m_meshes)
-		mesh.create(*ppMesh++, m_maskEnabledBufData);
+		mesh.create(*ppMesh++, m_attribId);
 
 	m_globInvT = m_pScene->mRootNode->mTransformation;
 	m_globInvT.Inverse();
@@ -116,7 +143,7 @@ unsigned C3dglModel::loadAnimations(C3dglModel* pCompatibleModel)
 		}
 
 		// rest of the nodes
-		for (auto mypair : mymap)
+		for (auto& mypair : mymap)
 		{
 			// check if the aiNode is already known in the look-up table
 			if (lookUp.find(mypair.second) == lookUp.end())
@@ -151,14 +178,6 @@ void C3dglModel::destroy()
 		aiReleaseImport(m_pScene);
 		m_pScene = NULL;
 	}
-}
-
-void C3dglModel::enableBufData(ATTRIB_STD bufId, bool bEnable)
-{
-	if (bEnable)
-		m_maskEnabledBufData |= (1 << bufId);
-	else
-		m_maskEnabledBufData &= ~(1 << bufId);
 }
 
 void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
@@ -287,7 +306,7 @@ bool C3dglModel::getBBNode(aiNode* pNode, aiVector3D BB[2], aiMatrix4x4* trafo)
 	for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
 		aiVector3D bb[2];
-		memcpy(bb, m_meshes[iMesh].getBB(), sizeof(bb));
+		m_meshes[iMesh].getBoundingVol(*(glm::vec3*)&bb[0], *(glm::vec3*)&bb[1]);
 		aiTransformVecByMatrix4(&bb[0], trafo);
 		aiTransformVecByMatrix4(&bb[1], trafo);
 		if (bb[0].x < BB[0].x) BB[0].x = bb[0].x;
