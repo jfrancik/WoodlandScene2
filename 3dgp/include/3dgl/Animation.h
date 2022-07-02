@@ -1,9 +1,12 @@
 /*********************************************************************************
 3DGL 3D Graphics Library created by Jarek Francik for Kingston University students
-Version 3.0 - June 2022
-Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
+Partially based on http://ogldev.atspace.co.uk/www/tutorial38/tutorial38.html
+Version 2.2 23/03/15
 
-3dglTools: Simple tool functions
+Copyright (C) 2013-15 Jarek Francik, Kingston University, London, UK
+
+Implementation of an Animation loader/solver class
+Uses AssImp (Open Asset Import Library) Library to interpret animation information
 ----------------------------------------------------------------------------------
 This software is provided 'as-is', without any express or implied
 warranty. In no event will the authors be held liable for any damages
@@ -27,40 +30,52 @@ freely, subject to the following restrictions:
    jarek@kingston.ac.uk
 *********************************************************************************/
 
-#ifndef __3dglTools_h_
-#define __3dglTools_h_
+#ifndef __3dglAnimation_h_
+#define __3dglAnimation_h_
 
+// Include GLM core features
 #include "../glm/glm.hpp"
-#include "../glm/gtc/constants.hpp"
 
 // Include 3DGL API import/export settings
 #include "3dglapi.h"
 
+// standard libraries
+#include <vector>
+#include <map>
+
+struct aiAnimation;
+struct aiNode;
+
 namespace _3dgl
 {
-	// pass the matrixView to get the current camera position
-	glm::vec3 getPos(glm::mat4 m)
-	{
-		return glm::inverse(m)[3];
-	}
+	class C3dglModel;
 
-	// pass the matrixView to get the current camera pitch
-	float getPitch(glm::mat4 m)
+	class MY3DGL_API C3dglAnimation
 	{
-		return fmod(atan2(-m[2][1], m[2][2]) + glm::pi<float>() + glm::half_pi<float>(), glm::pi<float>()) - glm::half_pi<float>();
-	}
+	private:
+		// Owner
+		C3dglModel* m_pOwner;
 
-	// pass the matrixView to get the current camera yaw
-	float getYaw(glm::mat4 m)
-	{
-		return atan2(m[2][0], m[0][0]);
-	}
+		// Animation data
+		const aiAnimation* m_pAnim;
 
-	// pass the matrixView to get the current camera roll
-	float getRoll(glm::mat4 m)
-	{
-		return atan2(-m[1][0], m[1][1]);
-	}
-}; // namespace _3dgl
+		// Look-up table
+#pragma warning(push)
+#pragma warning(disable: 4251)
+		std::map<const aiNode*, std::pair<size_t, size_t> > m_lookUp;
+#pragma warning(pop)
+
+	public:
+		C3dglAnimation(C3dglModel* pOwner);
+
+		void create(const aiAnimation* pAnim, std::map<std::string, const aiNode*> &mymap);
+
+		std::string getName();
+		double getDuration();
+		double getTicksPerSecond();
+
+		void readNodeHierarchy(float time, const aiNode* pNode, const glm::mat4& t, std::vector<glm::mat4>& transforms);
+	};
+}
 
 #endif

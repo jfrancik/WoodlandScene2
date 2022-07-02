@@ -27,18 +27,22 @@ CLogger::CLogger()
 	operator[](M3DGL_SUCCESS_UNIFORM_FOUND) = "uniform location found: {} = {}.";
 	operator[](M3DGL_SUCCESS_VERIFICATION) = "verification result: {}.";
 	operator[](M3DGL_SUCCESS_LOADED) = "loaded from: {}.";
-	operator[](M3DGL_SUCCESS_BONES_FOUND) = "{}: bones found: {}.";
+	operator[](M3DGL_SUCCESS_BONES_FOUND) = "\b: bones found: {}.";
 	operator[](M3DGL_SUCCESS_IMPORTING_FILE) = "Importing file: {}.";
 
 	operator[](M3DGL_WARNING_GENERIC) = "{}";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_FOUND) = "uniform location not found: {}.";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_REGISTERED) = "unregistered uniform used: {}.";
-	operator[](M3DGL_WARNING_NO_VERTICES) = "contains a mesh with no vertices.";
-	operator[](M3DGL_WARNING_NON_TRIANGULAR_MESH) = "is loading non-triangular mesh: only triangular meshes are supported.";
+	operator[](M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE) = "failed to detect a programmable pipeline. Are you trying to load a model before initialisaing a shader program?";
 	operator[](M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED) = "is providing vertex coordinates but vertex buffer is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED) = "is providing normal coordinates but normal buffer is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED) = "implements bone ids but bone weights are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED) = "implements bone weights but bone ids are not implemented in the current shader program.";
+	operator[](M3DGL_WARNING_SKINNING_NOT_IMPLEMENTED) = "comes with animations but skinning is not implemented.";
+	operator[](M3DGL_WARNING_NON_TRIANGULAR_MESH) = "is loading non-triangular mesh: only triangular meshes are supported.";
+	operator[](M3DGL_WARNING_NO_VERTICES) = "has no vertices.";
+	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is using {} UV coordinates. Only 2 UV coordinates are supported.";
+	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "maximum number of bones per vertex exceeded.";
 	operator[](M3DGL_WARNING_VERTEX_BUFFER_MISSING) = "is missing vertex buffer information.";
 	operator[](M3DGL_WARNING_NORMAL_BUFFER_MISSING) = "is missing normal buffer information.";
 	operator[](M3DGL_WARNING_TEXCOORD_BUFFER_MISSING) = "is missing texture coordinate buffer information.";
@@ -47,10 +51,6 @@ CLogger::CLogger()
 	operator[](M3DGL_WARNING_COLOR_BUFFER_MISSING) = "is missing color buffer information.";
 	operator[](M3DGL_WARNING_BONE_ID_BUFFER_MISSING) = "is missing bone ID information.";
 	operator[](M3DGL_WARNING_BONE_WEIGHT_BUFFER_MISSING) = "is missing bone weight information.";
-	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is using {} UV coordinates. Only 2 UV coordinates are supported.";
-	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "maximum number of bones per vertex exceeded.";
-	//operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_1_0) = "some bone weights do not sum up to 1.0.";
-	operator[](M3DGL_WARNING_SKINNING_NOT_IMPLEMENTED) = "comes with animations but skinning is not implemented.";
 	operator[](M3DGL_WARNING_CANNOT_LOAD_FROM) = "couldn't load from: {}.";
 
 	operator[](M3DGL_ERROR_GENERIC) = "{}";

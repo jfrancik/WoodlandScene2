@@ -1,5 +1,4 @@
 #include <iostream>
-#include <format>
 #include <GL/glew.h>
 #include <3dgl/3dgl.h>
 #include <GL/glut.h>
@@ -218,9 +217,9 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 		// calculate the animation time
 		if (level < 9) time = 0;
 		// calculate and send bone transforms
-		std::vector<float> transforms;
+		std::vector<mat4> transforms;
 		wolf.getAnimData(0, time * 1.45f, transforms);// choose animation cycle & speed of animation
-		Program.SendUniformMatrixv("bones", (float*)&transforms[0], (GLuint)(transforms.size()) / 16);// amount of vertexes 
+		Program.SendUniformMatrixv("bones", (float*)&transforms[0], (GLuint)(transforms.size()));// amount of vertexes 
 	}
 
 	// render the wolf
@@ -461,7 +460,7 @@ int main(int argc, char **argv)
 
 	cout << "Vendor: " << glGetString(GL_VENDOR) << endl;
 	cout << "Renderer: " << glGetString(GL_RENDERER) << endl;
-	cout << "Version: " << glGetString(GL_VERSION) << endl;
+	cout << "Version: " << glGetString(GL_VERSION) << endl << endl;
 
 	// init light and everything – not a GLUT or callback function!
 	if (!init())

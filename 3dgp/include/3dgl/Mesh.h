@@ -35,8 +35,7 @@ freely, subject to the following restrictions:
 // Include GLM core features
 #include "../glm/glm.hpp"
 
-// Include 3DGL API import/export settings
-#include "3dglapi.h"
+#include "Object.h"
 #include "CommonDef.h"
 
 struct aiMesh;
@@ -44,9 +43,9 @@ struct aiMesh;
 namespace _3dgl
 {
 	class C3dglModel;
-	struct C3dglMAT;
+	class C3dglMaterial;
 
-	struct MY3DGL_API C3dglMESH
+	class MY3DGL_API C3dglMesh : public C3dglObject
 	{
 		// Owner
 		C3dglModel *m_pOwner;
@@ -58,15 +57,17 @@ namespace _3dgl
 		GLuint m_id[ATTR_LAST];
 		GLuint mIndexId;	// index buffer id
 
-		// number of elements to draw (size of index buffer)
-		GLsizei m_indexSize;
+		// statistics
+		unsigned m_nVertices;		// number of vertices
+		unsigned m_nUVComponents;	// number of UV coords - must be 2
+		unsigned m_indexSize;		// number of elements to draw (size of index buffer)
+		unsigned m_nBones;			// number of bones
 
 		// Material Index - points to the main m_materials collection
 		size_t m_nMaterialIndex;
 		
 		// Bounding Volume (experimental feature)
-		glm::vec3 m_bound1, m_bound2;
-		glm::vec3 m_centre;
+		glm::vec3 m_aabb[2];
 	
 	protected:
 		unsigned getBuffers(const aiMesh* pMesh, GLuint attribId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
@@ -75,7 +76,7 @@ namespace _3dgl
 		void setupBoundingVolume(const aiMesh* pMesh);
 
 	public:
-		C3dglMESH(C3dglModel* pOwner = NULL);
+		C3dglMesh(C3dglModel* pOwner);
 		
 		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
 		void create(const aiMesh *pMesh, GLuint attribId[ATTR_LAST]);
@@ -95,13 +96,18 @@ namespace _3dgl
 		unsigned getAttrData(const aiMesh* pMesh, enum ATTRIB_STD attr, void** ppData, size_t* indSize);
 		unsigned getIndexData(const aiMesh* pMesh, void** ppData, size_t* indSize);
 
+		// Statistics
+		unsigned getVertexCount()		{ return m_nVertices; }
+		unsigned getUVComponentCount()	{ return m_nUVComponents; }
+		unsigned getIndexCount()		{ return m_indexSize; }
+		unsigned getBoneCount()			{ return m_nBones; }
+
 		// Material functions
-		C3dglMAT *getMaterial();
-		C3dglMAT *createNewMaterial();
+		C3dglMaterial *getMaterial();
+		C3dglMaterial *createNewMaterial();
 
 		// Bounding volume and geometrical centre
-		void getBoundingVol(glm::vec3& bbmin, glm::vec3& bbmax) { bbmin = m_bound1; bbmax = m_bound2;  }
-		glm::vec3 getCentre()		{ return m_centre; }
+		void getAABB(glm::vec3 aabb[2]) { aabb[0] = m_aabb[0]; aabb[1] = m_aabb[1]; }
 	
 		std::string getName();
 	};

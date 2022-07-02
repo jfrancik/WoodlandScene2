@@ -163,6 +163,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Animation.cpp" />
     <ClCompile Include="Bitmap.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="Material.cpp" />
@@ -176,6 +177,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\3dgl\3dgl.h" />
     <ClInclude Include="..\include\3dgl\3dglapi.h" />
+    <ClInclude Include="..\include\3dgl\Animation.h" />
     <ClInclude Include="..\include\3dgl\Bitmap.h" />
     <ClInclude Include="..\include\3dgl\CommonDef.h" />
     <ClInclude Include="..\include\3dgl\Material.h" />

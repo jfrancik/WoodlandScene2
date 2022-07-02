@@ -41,7 +41,7 @@ freely, subject to the following restrictions:
 
 // allows for exporting selected glm structures
 #ifdef GLM_SETUP_INCLUDED
-template struct MY3DGL_API glm::vec3;
+template struct MY3DGL_API glm::vec<3, float, glm::highp>;
 #endif
 
 // allows for exporting std::string (don't ask me how!)

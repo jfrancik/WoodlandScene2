@@ -7,53 +7,57 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <GL/glew.h>
 #include <3dgl/Model.h>
 #include <3dgl/Shader.h>
-#include <3dgl/Bitmap.h>
 
 // assimp include file
+#include "assimp/scene.h"
+#include "assimp/postprocess.h"
 #include <assimp/cimport.h>
+#include <assimp/DefaultLogger.hpp>
 
 // GLM include files
 #include "../glm/vec3.hpp"
 #include "../glm/vec4.hpp"
 #include "../glm/mat4x4.hpp"
-#include "../glm/trigonometric.hpp"
 #include "../glm/gtc/type_ptr.hpp"
-
-#include <assert.h>
 
 using namespace std;
 using namespace _3dgl;
 
-C3dglModel::C3dglModel() : C3dglObject() 
+const GLuint NEG1 = (GLuint)-1;
+
+C3dglModel::C3dglModel() : C3dglObject(), m_attribId{ NEG1, NEG1, NEG1, NEG1,NEG1, NEG1,NEG1, NEG1 }, m_globInvT(1)
 { 
 	m_pScene = NULL; 
 	m_pProgram = 0;
 }
 
+void C3dglModel::enableAssimpLoggingLevel(AssimpLoggingLevel level)
+{
+	Assimp::DefaultLogger::create("", (Assimp::Logger::LogSeverity)level, aiDefaultLogStream_STDOUT);
+}
+
+void C3dglModel::disableAssimpLoggingLevel()
+{
+	Assimp::DefaultLogger::kill();
+}
 
 bool C3dglModel::load(const char* pFile, unsigned int flags)
 {
+	if (flags == 0)
+		flags = aiProcessPreset_TargetRealtime_MaxQuality;
+
 	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
-	const aiScene* pScene = aiImportFile(pFile, flags);
-	if (pScene == NULL)
-	{
-		log(M3DGL_ERROR_AI, aiGetErrorString());
-		return false;
-	}
 	m_name = pFile;
 	size_t i = m_name.find_last_of("/\\");
 	if (i != string::npos) m_name = m_name.substr(i + 1);
 	i = m_name.find_last_of(".");
 	if (i != string::npos) m_name = m_name.substr(0, i);
+
+	const aiScene* pScene = aiImportFile(pFile, flags);
+	if (pScene == NULL)
+		return log(M3DGL_ERROR_AI, aiGetErrorString());
 	create(pScene);
 	return true;
-}
-
-void __createMap(const aiNode* pNode, std::map<std::string, const aiNode*>& map)
-{
-	map[pNode->mName.data] = pNode;
-	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		__createMap(pChildNode, map);
 }
 
 void C3dglModel::create(const aiScene* pScene)
@@ -67,10 +71,11 @@ void C3dglModel::create(const aiScene* pScene)
 			m_attribId[attrib] = m_pProgram->GetAttribLocation((ATTRIB_STD)attrib);
 
 	// Generate warnings
-		// Possible warnings...
-	if (m_attribId[ATTR_VERTEX] == (GLuint)-1)
+	if (!m_pProgram)
+		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
+	if (m_pProgram && m_attribId[ATTR_VERTEX] == (GLuint)-1)
 		log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
-	if (m_attribId[ATTR_NORMAL] == (GLuint)-1)
+	if (m_pProgram && m_attribId[ATTR_NORMAL] == (GLuint)-1)
 		log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
 	if (m_attribId[ATTR_BONE_ID] != (GLuint)-1 && m_attribId[ATTR_BONE_WEIGHT] == (GLuint)-1)
 		log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
@@ -80,23 +85,32 @@ void C3dglModel::create(const aiScene* pScene)
 
 	// create meshes
 	m_pScene = pScene;
-	m_meshes.resize(m_pScene->mNumMeshes, C3dglMESH(this));
+	m_meshes.resize(m_pScene->mNumMeshes, C3dglMesh(this));
 	aiMesh** ppMesh = m_pScene->mMeshes;
-	for (C3dglMESH& mesh : m_meshes)
-		mesh.create(*ppMesh++, m_attribId);
+	for (C3dglMesh& mesh : m_meshes)
+		if (m_pProgram)
+			mesh.create(*ppMesh++, m_attribId);
+		else
+			mesh.create(*ppMesh++);
 
-	m_globInvT = m_pScene->mRootNode->mTransformation;
-	m_globInvT.Inverse();
+	m_globInvT = glm::inverse(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation));	// transpose or invert - that is the question!
 }
 
 void C3dglModel::loadMaterials(const char* pTexRootPath)
 {
 	if (!m_pScene) return;
 
-	m_materials.resize(m_pScene->mNumMaterials, C3dglMAT());
+	m_materials.resize(m_pScene->mNumMaterials, C3dglMaterial());
 	aiMaterial** ppMaterial = m_pScene->mMaterials;
-	for (C3dglMAT& material : m_materials)
+	for (C3dglMaterial& material : m_materials)
 		material.create(*ppMaterial++, pTexRootPath);
+}
+
+static void __createMap(const aiNode* pNode, std::map<std::string, const aiNode*>& map)
+{
+	map[pNode->mName.data] = pNode;
+	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		__createMap(pChildNode, map);
 }
 
 unsigned C3dglModel::loadAnimations()
@@ -122,59 +136,23 @@ unsigned C3dglModel::loadAnimations(C3dglModel* pCompatibleModel)
 	map<string, const aiNode*> mymap;		// map of nodes
 	__createMap(GetScene()->mRootNode, mymap);
 
-	for (unsigned iAnim = 0; iAnim < pScene->mNumAnimations; iAnim++)
-	{
-		aiAnimation* pAnim = pScene->mAnimations[iAnim];
 
-		m_animations.push_back(ANIMATION());
-		ANIMATION& anim = m_animations[m_animations.size() - 1];
-		anim.m_pAnim = pAnim;
-		map<const aiNode*, std::pair<size_t, size_t> > &lookUp = anim.m_lookUp;
-
-		// create the lookUp structure
-		int i = 0;
-		for (aiNodeAnim* pNodeAnim : vector<aiNodeAnim*>(pAnim->mChannels, pAnim->mChannels + pAnim->mNumChannels))
-		{
-			string strNodeName = pNodeAnim->mNodeName.data;
-			const aiNode* pNode = mymap[strNodeName];
-			size_t id = 99999;
-			getBone(strNodeName, id);
-			lookUp[pNode] = pair<size_t, size_t>(i++, id);
-		}
-
-		// rest of the nodes
-		for (auto& mypair : mymap)
-		{
-			// check if the aiNode is already known in the look-up table
-			if (lookUp.find(mypair.second) == lookUp.end())
-			{
-				size_t id = 99999;
-				getBone(mypair.first, id);
-				lookUp[mypair.second] = pair<size_t, size_t>(0xffff, id);
-			}
-		}
-	}
+	m_animations.resize(pScene->mNumAnimations, C3dglAnimation(this));
+	aiAnimation** ppAnimation = pScene->mAnimations;
+	for (C3dglAnimation& animation : m_animations)
+		animation.create(*ppAnimation++, mymap);
+	
 	return pScene->mNumAnimations;
-}
-
-unsigned C3dglModel::loadAnimations(const char* pFile, unsigned int flags)
-{
-	C3dglModel *p = new C3dglModel();
-	m_auxModels.push_back(p);
-	p->load(pFile, flags);
-	return loadAnimations(p);
 }
 
 void C3dglModel::destroy()
 {
 	if (m_pScene)
 	{
-		for (C3dglMESH mesh : m_meshes)
+		for (C3dglMesh mesh : m_meshes)
 			mesh.destroy();
-		for (C3dglMAT mat : m_materials)
+		for (C3dglMaterial mat : m_materials)
 			mat.destroy();
-		for (C3dglModel *p : m_auxModels)
-			delete p;
 		aiReleaseImport(m_pScene);
 		m_pScene = NULL;
 	}
@@ -182,9 +160,7 @@ void C3dglModel::destroy()
 
 void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 {
-	aiMatrix4x4 mx = pNode->mTransformation;
-	aiTransposeMatrix4(&mx);
-	m *= glm::make_mat4((GLfloat*)&mx);
+	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
 	// check if a shading program is active
 	C3dglProgram* pProgram = C3dglProgram::GetCurrentProgram();
@@ -201,28 +177,10 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 
 	for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
-		C3dglMESH* pMesh = &m_meshes[iMesh];
-		C3dglMAT* pMaterial = pMesh->getMaterial();
+		C3dglMesh* pMesh = &m_meshes[iMesh];
+		C3dglMaterial* pMaterial = pMesh->getMaterial();
 		if (pMaterial)
-		{
-			for (unsigned texUnit = GL_TEXTURE0; texUnit <= GL_TEXTURE31; texUnit++)
-			{
-				unsigned idTex;
-				if (pMaterial->getTexture(texUnit, idTex))
-				{
-					glActiveTexture(texUnit);
-					glBindTexture(GL_TEXTURE_2D, idTex);
-				}
-			}
-
-			glm::vec3 vec;
-			if (pMaterial->getAmbient(vec)) pProgram->SendStandardUniform(UNI_MAT_AMBIENT, vec);
-			if (pMaterial->getDiffuse(vec)) pProgram->SendStandardUniform(UNI_MAT_DIFFUSE, vec);
-			if (pMaterial->getSpecular(vec)) pProgram->SendStandardUniform(UNI_MAT_SPECULAR, vec);
-			if (pMaterial->getEmissive(vec)) pProgram->SendStandardUniform(UNI_MAT_EMISSIVE, vec);
-			float v;
-			if (pMaterial->getShininess(v)) pProgram->SendStandardUniform(UNI_MAT_SHININESS, vec);
-		}
+			pMaterial->render(pProgram);
 		pMesh->render();
 	}
 
@@ -231,9 +189,9 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 		renderNode(p, m);
 }
 
-void C3dglModel::render(glm::mat4 matrix)
-{
-	if (m_pScene->mRootNode)
+void C3dglModel::render(glm::mat4 matrix) 
+{ 
+	if (m_pScene->mRootNode) 
 		renderNode(m_pScene->mRootNode, matrix);
 }
 
@@ -244,23 +202,15 @@ void C3dglModel::render(unsigned iNode, glm::mat4 matrix)
 	aiTransposeMatrix4(&m);
 	matrix *= glm::make_mat4((GLfloat*)&m);
 
-	if (iNode <= getParentNodeCount())
+	if (iNode <= getMainNodeCount())
 		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix);
 }
 
-//void C3dglModel::render()
-//{
-//	glm::mat4 m;
-//	glGetFloatv(GL_MODELVIEW_MATRIX, (GLfloat*)&m);
-//	render(m);
-//}
+unsigned C3dglModel::getMainNodeCount() 
+{ 
+	return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; 
+}
 
-//void C3dglModel::render(unsigned iNode)
-//{
-//	glm::mat4 m;
-//	glGetFloatv(GL_MODELVIEW_MATRIX, (GLfloat*)&m);
-//	render(iNode, m);
-//}
 
 void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecursive)
 {
@@ -274,174 +224,109 @@ void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecurs
 	*((aiMatrix4x4*)pMatrix) = m2 * m1;
 }
 
-bool C3dglModel::getBone(std::string boneName)
+bool C3dglModel::hasBone(std::string boneName)
 {
 	return m_mapBones.find(boneName) != m_mapBones.end();
 }
 
-bool C3dglModel::getBone(std::string boneName, size_t& id)
+size_t C3dglModel::getBoneId(std::string boneName)
 {
 	auto it = m_mapBones.find(boneName);
-	if (it == m_mapBones.end())
-		return false;
-	id = it->second;
-	return true;
+	if (it != m_mapBones.end())
+		return it->second;
+	else
+		return (size_t)-1;
 }
 
-bool C3dglModel::getOrAddBone(std::string boneName, size_t& id)
+size_t C3dglModel::getOrAddBone(std::string boneName, glm::mat4 offsetMatrix)
 {
-	if (getBone(boneName, id))
-		return true;
-
-	id = m_mapBones.size();
-	m_mapBones[boneName] = id;
-	return false;
+	auto it = m_mapBones.find(boneName);
+	if (it != m_mapBones.end())
+		return it->second;
+	else
+	{
+		size_t id = m_vecBones.size();
+		m_vecBones.push_back(pair<std::string, glm::mat4>(boneName, offsetMatrix));
+		m_mapBones[boneName] = id;
+		return id;
+	}
 }
 
-bool C3dglModel::getBBNode(aiNode* pNode, aiVector3D BB[2], aiMatrix4x4* trafo)
+void C3dglModel::getBB(glm::vec3 BB[2]) 
+{ 
+	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
+	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
+	if (m_pScene->mRootNode)
+		getBB(m_pScene->mRootNode, BB); 
+}
+
+void C3dglModel::getBB(unsigned iNode, glm::vec3 BB[2])
 {
-	aiMatrix4x4 prev = *trafo;
-	aiMultiplyMatrix4(trafo, &pNode->mTransformation);
+	// update transform
+	aiMatrix4x4 m = m_pScene->mRootNode->mTransformation;
+	aiTransposeMatrix4(&m);
+
+	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
+	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
+
+	if (iNode <= getMainNodeCount())
+		getBB(m_pScene->mRootNode->mChildren[iNode], BB, glm::make_mat4((GLfloat*)&m));
+}
+
+void C3dglModel::getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
+{
+	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
 	for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
-		aiVector3D bb[2];
-		m_meshes[iMesh].getBoundingVol(*(glm::vec3*)&bb[0], *(glm::vec3*)&bb[1]);
-		aiTransformVecByMatrix4(&bb[0], trafo);
-		aiTransformVecByMatrix4(&bb[1], trafo);
-		if (bb[0].x < BB[0].x) BB[0].x = bb[0].x;
-		if (bb[0].y < BB[0].y) BB[0].y = bb[0].y;
-		if (bb[0].z < BB[0].z) BB[0].z = bb[0].z;
-		if (bb[1].x > BB[0].x) BB[1].x = bb[1].x;
-		if (bb[1].y > BB[0].y) BB[1].y = bb[1].y;
-		if (bb[1].z > BB[0].z) BB[1].z = bb[1].z;
+		glm::vec3 bb[2];
+		m_meshes[iMesh].getAABB(bb);
+
+		glm::vec4 bb4[2];
+		bb4[0] = m * glm::vec4(bb[0], 1);
+		bb4[1] = m * glm::vec4(bb[1], 1);
+
+		BB[0].x = min(BB[0].x, bb4[0].x);
+		BB[0].y = min(BB[0].y, bb4[0].y);
+		BB[0].z = min(BB[0].z, bb4[0].z);
+		BB[0].x = min(BB[0].x, bb4[1].x);
+		BB[0].y = min(BB[0].y, bb4[1].y);
+		BB[0].z = min(BB[0].z, bb4[1].z);
+
+		BB[1].x = max(BB[1].x, bb4[0].x);
+		BB[1].y = max(BB[1].y, bb4[0].y);
+		BB[1].z = max(BB[1].z, bb4[0].z);
+		BB[1].x = max(BB[1].x, bb4[1].x);
+		BB[1].y = max(BB[1].y, bb4[1].y);
+		BB[1].z = max(BB[1].z, bb4[1].z);
 	}
 
-	for (aiNode* pNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		getBBNode(pNode, BB, trafo);
-
-	*trafo = prev;
-	return true;
-}
-
-void C3dglModel::getBB(aiVector3D BB[2])
-{
-	aiMatrix4x4 trafo;
-	aiIdentityMatrix4(&trafo);
-
-	BB[0].x = BB[0].y = BB[0].z = 1e10f;
-	BB[1].x = BB[1].y = BB[1].z = -1e10f;
-	getBBNode(m_pScene->mRootNode, BB, &trafo);
-}
-
-std::string C3dglModel::getName()
-{
-	if (m_name.empty())
-		return "";
-	else
-		return "Model (" + m_name + ")";
+	// check all children
+	for (aiNode* p : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		getBB(p, BB, m);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
 // Articulated Animation Functions
 
-aiVector3D Interpolate(float AnimationTime, const aiVectorKey* pKeys, unsigned nKeys)
+void C3dglModel::getAnimData(unsigned iAnim, float time, vector<glm::mat4>& transforms)
 {
-	// find a pair of keys to interpolate
-	unsigned i = 0;
-	while (i < nKeys - 1 && AnimationTime >= (float)pKeys[i + 1].mTime)
-		i++;
-
-	// if out of bounds, return the last key
-	if (i >= nKeys - 1)
-		return pKeys[nKeys - 1].mValue;
-
-	// interpolate
-	const aiVector3D& Start = pKeys[i].mValue;
-	const aiVector3D& End = pKeys[i + 1].mValue;
-	float f = (AnimationTime - (float)pKeys[i].mTime) / ((float)(pKeys[i + 1].mTime - pKeys[i].mTime));
-	return Start + f * (End - Start);
-}
-
-aiQuaternion Interpolate(float AnimationTime, const aiQuatKey* pKeys, unsigned nKeys)
-{
-	// find a pair of keys to interpolate
-	unsigned i = 0;
-	while (i < nKeys - 1 && AnimationTime >= (float)pKeys[i + 1].mTime)
-		i++;
-
-	// if out of bounds, return the last key
-	if (i >= nKeys - 1)
-		return pKeys[nKeys - 1].mValue;
-
-	const aiQuaternion& StartRotationQ = pKeys[i].mValue;
-	const aiQuaternion& EndRotationQ = pKeys[i + 1].mValue;
-	float f = (AnimationTime - (float)pKeys[i].mTime) / ((float)(pKeys[i + 1].mTime - pKeys[i].mTime));
-	aiQuaternion q;
-	aiQuaternion::Interpolate(q, StartRotationQ, EndRotationQ, f);	// spherical interpolation (SLERP)
-	return q.Normalize();
-}
-
-void C3dglModel::readNodeHierarchy(ANIMATION& animation, float time, const aiNode* pNode, const aiMatrix4x4& t, vector<float>& transforms)
-{
-	aiMatrix4x4 transform;
-
-	auto it = animation.m_lookUp.find(pNode);
-	if (it != animation.m_lookUp.end())
+	transforms.resize(getBoneCount());	// 16 floats per bone matrix
+	if (!hasAnimation(iAnim))
 	{
-		size_t iAnimInd = it->second.first;
-		if (iAnimInd < animation.m_pAnim->mNumChannels)
-		{
-			const aiNodeAnim* pNodeAnim = animation.m_pAnim->mChannels[iAnimInd];
-
-			// Interpolate position, rotation and scaling
-			aiVector3D vecTranslate = Interpolate(time, pNodeAnim->mPositionKeys, pNodeAnim->mNumPositionKeys);
-			aiQuaternion quatRotate = Interpolate(time, pNodeAnim->mRotationKeys, pNodeAnim->mNumRotationKeys);
-			aiVector3D vecScale = Interpolate(time, pNodeAnim->mScalingKeys, pNodeAnim->mNumScalingKeys);
-
-			// create matrices
-			aiMatrix4x4 matTranslate, matScale;
-			aiMatrix4x4::Translation(vecTranslate, matTranslate);
-			aiMatrix4x4 matRotate = aiMatrix4x4(quatRotate.GetMatrix());
-			aiMatrix4x4::Scaling(vecScale, matScale);
-
-			// Combine the above transformations
-			transform = t * matTranslate * matRotate * matScale;
-		}
-		else
-			transform = t * pNode->mTransformation;
-
-
-		size_t iBone = it->second.second;
-		if (iBone < m_vecBoneOffsets.size())
-		{
-			aiMatrix4x4 m = (m_globInvT * transform * m_vecBoneOffsets[iBone]).Transpose();
-			memcpy(&transforms[iBone * 16], &m, sizeof(m));
-		}
-	}
-
-	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		readNodeHierarchy(animation, time, pChildNode, transform, transforms);
-}
-
-void C3dglModel::getAnimData(unsigned iAnim, float time, vector<float>& transforms)
-{
-	transforms.resize(m_vecBoneOffsets.size() * 16);	// 16 floats per bone matrix
-	if (!hasAnim(iAnim))
-	{
-		if (m_vecBoneOffsets.size() == 0) transforms.resize(16);
+		if (!hasBones()) transforms.resize(1);
 		aiMatrix4x4 m;
-		for (unsigned iBone = 0; iBone < transforms.size() / 16; iBone++)
-			memcpy(&transforms[iBone * 16], &m, sizeof(m));
+		for (unsigned iBone = 0; iBone < transforms.size(); iBone++)
+			memcpy(&transforms[iBone], &m, sizeof(m));
 	}
 	else
 	{
-		float fTicksPerSecond = (float)GetAnimTicksPerSecond(iAnim);
+		float fTicksPerSecond = (float)getAnimation(iAnim)->getTicksPerSecond();
 		if (fTicksPerSecond == 0) fTicksPerSecond = 25.0f;
-		time = fmod(time * fTicksPerSecond, (float)GetAnimDuration(iAnim));
+		time = fmod(time * fTicksPerSecond, (float)getAnimation(iAnim)->getDuration());
 
-		aiMatrix4x4 t;
-		readNodeHierarchy(m_animations[iAnim], time, GetScene()->mRootNode, t, transforms);
+		glm::mat4 t(1);
+		m_animations[iAnim].readNodeHierarchy(time, GetScene()->mRootNode, t, transforms);
 	}
 }
 

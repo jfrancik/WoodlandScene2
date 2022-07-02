@@ -44,7 +44,9 @@ struct aiMaterial;
 
 namespace _3dgl
 {
-	struct MY3DGL_API C3dglMAT
+	class C3dglProgram;
+
+	class MY3DGL_API C3dglMaterial
 	{
 	private:
 		// texture id
@@ -58,9 +60,11 @@ namespace _3dgl
 		static unsigned c_idTexBlank;
 
 	public:
-		C3dglMAT();
+		C3dglMaterial();
 		void create(const aiMaterial* pMat, const char* pDefTexPath);
 		void destroy();
+
+		void render(C3dglProgram*);
 
 		bool getAmbient(glm::vec3& val)		{ if (!m_bAmb) return false; val = m_amb; return true;  }
 		bool getDiffuse(glm::vec3& val)		{ if (!m_bDiff) return false; val = m_diff; return true; }

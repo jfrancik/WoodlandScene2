@@ -7,6 +7,7 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <GL/glew.h>
 #include <3dgl/Material.h>
 #include <3dgl/Bitmap.h>
+#include <3dgl/Shader.h>
 
 // assimp include file
 #include <assimp/scene.h>
@@ -14,9 +15,9 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 using namespace std;
 using namespace _3dgl;
 
-unsigned C3dglMAT::c_idTexBlank = 0xFFFFFFFF;
+unsigned C3dglMaterial::c_idTexBlank = 0xFFFFFFFF;
 
-C3dglMAT::C3dglMAT()
+C3dglMaterial::C3dglMaterial()
 {
 	memset(m_idTexture, 0xFFFFFFFF, sizeof(m_idTexture));
 	m_bAmb = m_bDiff = m_bSpec = m_bEmiss = m_bShininess = false;
@@ -28,7 +29,7 @@ C3dglMAT::C3dglMAT()
 	m_shininess = 0.0f;
 }
 
-void C3dglMAT::create(const aiMaterial *pMat, const char* pDefTexPath)
+void C3dglMaterial::create(const aiMaterial *pMat, const char* pDefTexPath)
 {
 	const char* pPath = NULL;
 
@@ -60,14 +61,35 @@ void C3dglMAT::create(const aiMaterial *pMat, const char* pDefTexPath)
 		loadTexture();
 }
 
-void C3dglMAT::destroy()
+void C3dglMaterial::destroy()
 {
 	for (unsigned& idTexture : m_idTexture)
 		if (idTexture != 0xffffffff)
 			glDeleteTextures(1, &idTexture);
 }
 
-void C3dglMAT::loadTexture(GLenum texUnit, string strDefTexPath, string strPath)
+void C3dglMaterial::render(C3dglProgram *pProgram)
+{
+	for (unsigned texUnit = GL_TEXTURE0; texUnit <= GL_TEXTURE31; texUnit++)
+	{
+		unsigned idTex;
+		if (getTexture(texUnit, idTex))
+		{
+			glActiveTexture(texUnit);
+			glBindTexture(GL_TEXTURE_2D, idTex);
+		}
+	}
+
+	glm::vec3 vec;
+	if (getAmbient(vec)) pProgram->SendStandardUniform(UNI_MAT_AMBIENT, vec);
+	if (getDiffuse(vec)) pProgram->SendStandardUniform(UNI_MAT_DIFFUSE, vec);
+	if (getSpecular(vec)) pProgram->SendStandardUniform(UNI_MAT_SPECULAR, vec);
+	if (getEmissive(vec)) pProgram->SendStandardUniform(UNI_MAT_EMISSIVE, vec);
+	float v;
+	if (getShininess(v)) pProgram->SendStandardUniform(UNI_MAT_SHININESS, vec);
+}
+
+void C3dglMaterial::loadTexture(GLenum texUnit, string strDefTexPath, string strPath)
 {
 	// prepare path
 	std::ifstream f(strPath);
@@ -90,7 +112,7 @@ void C3dglMAT::loadTexture(GLenum texUnit, string strDefTexPath, string strPath)
 	loadTexture(texUnit, strPath);
 }
 
-void C3dglMAT::loadTexture(GLenum texUnit, string strPath)
+void C3dglMaterial::loadTexture(GLenum texUnit, string strPath)
 {
 	// generate IL image id
 	C3dglBitmap bm;
@@ -108,7 +130,7 @@ void C3dglMAT::loadTexture(GLenum texUnit, string strPath)
 	}
 }
 
-void C3dglMAT::loadTexture(GLenum texUnit)
+void C3dglMaterial::loadTexture(GLenum texUnit)
 {
 	if (c_idTexBlank == 0xffffffff)
 	{
