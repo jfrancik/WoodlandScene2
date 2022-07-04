@@ -58,8 +58,10 @@ public:
     C3dglTerrain();
 
 	// height map
+#pragma warning(push)
 #pragma warning(disable: 4251)
 	std::vector<float> m_heights;
+#pragma warning(pop)
 
 	float getHeight(int x, int z);
 	float getInterpolatedHeight(float x, float z);

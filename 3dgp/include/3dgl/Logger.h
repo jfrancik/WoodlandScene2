@@ -41,6 +41,7 @@ namespace _3dgl
 	{
 		// Information/Success
 		M3DGL_SUCCESS,
+		M3DGL_SUCCESS_IMPORTING_FILE,
 		M3DGL_SUCCESS_CREATED,
 		M3DGL_SUCCESS_SRC_CODE_LOADED,
 		M3DGL_SUCCESS_COMPILED,
@@ -50,8 +51,8 @@ namespace _3dgl
 		M3DGL_SUCCESS_UNIFORM_FOUND,
 		M3DGL_SUCCESS_VERIFICATION,
 		M3DGL_SUCCESS_LOADED,
+		M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE,
 		M3DGL_SUCCESS_BONES_FOUND,
-		M3DGL_SUCCESS_IMPORTING_FILE,
 
 		// Warnings
 		M3DGL_WARNING_GENERIC = 200,
@@ -75,7 +76,9 @@ namespace _3dgl
 		M3DGL_WARNING_COLOR_BUFFER_MISSING,
 		M3DGL_WARNING_BONE_ID_BUFFER_MISSING,
 		M3DGL_WARNING_BONE_WEIGHT_BUFFER_MISSING,
-		M3DGL_WARNING_CANNOT_LOAD_FROM,					// bitmap.cpp
+		M3DGL_WARNING_CANNOT_LOAD,					// bitmap.cpp
+		M3DGL_WARNING_CANNOT_LOAD_FROM_EMBED_FILE,
+		M3DGL_WARNING_EMBED_FILE_UNKNOWN_FORMAT,
 
 		// Errors
 		M3DGL_ERROR_GENERIC = 500,
@@ -106,6 +109,13 @@ namespace _3dgl
 		{
 			return _log(nCode, name, std::vformat(getInstance()[nCode], std::make_format_args(args ...)));
 		}
+
+		template<typename ... Args>
+		static inline void write(std::string format, Args... args)
+		{
+			return write(std::vformat(format, std::make_format_args(args ...)));
+		}
+		static void write(std::string);
 	};
 }
 

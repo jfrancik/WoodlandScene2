@@ -18,6 +18,7 @@ using namespace _3dgl;
 CLogger::CLogger()
 {
 	operator[](M3DGL_SUCCESS) = "{}";
+	operator[](M3DGL_SUCCESS_IMPORTING_FILE) = "is importing file: {}.";
 	operator[](M3DGL_SUCCESS_CREATED) = "created successfully.";
 	operator[](M3DGL_SUCCESS_SRC_CODE_LOADED) = "source code loaded.";
 	operator[](M3DGL_SUCCESS_COMPILED) = "compiled successfully.";
@@ -27,8 +28,8 @@ CLogger::CLogger()
 	operator[](M3DGL_SUCCESS_UNIFORM_FOUND) = "uniform location found: {} = {}.";
 	operator[](M3DGL_SUCCESS_VERIFICATION) = "verification result: {}.";
 	operator[](M3DGL_SUCCESS_LOADED) = "loaded from: {}.";
+	operator[](M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE) = "loaded from embedded file: {}.";
 	operator[](M3DGL_SUCCESS_BONES_FOUND) = "\b: bones found: {}.";
-	operator[](M3DGL_SUCCESS_IMPORTING_FILE) = "Importing file: {}.";
 
 	operator[](M3DGL_WARNING_GENERIC) = "{}";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_FOUND) = "uniform location not found: {}.";
@@ -51,7 +52,9 @@ CLogger::CLogger()
 	operator[](M3DGL_WARNING_COLOR_BUFFER_MISSING) = "is missing color buffer information.";
 	operator[](M3DGL_WARNING_BONE_ID_BUFFER_MISSING) = "is missing bone ID information.";
 	operator[](M3DGL_WARNING_BONE_WEIGHT_BUFFER_MISSING) = "is missing bone weight information.";
-	operator[](M3DGL_WARNING_CANNOT_LOAD_FROM) = "couldn't load from: {}.";
+	operator[](M3DGL_WARNING_CANNOT_LOAD) = "couldn't load from: {}.";
+	operator[](M3DGL_WARNING_CANNOT_LOAD_FROM_EMBED_FILE) = "couldn't load from embedded file: {}.";
+	operator[](M3DGL_WARNING_EMBED_FILE_UNKNOWN_FORMAT) = "encountered unknown file format {} in embedded file: {}.";
 
 	operator[](M3DGL_ERROR_GENERIC) = "{}";
 	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {} :\n\r    Sending value of {} but expected was {}.";
@@ -109,8 +112,13 @@ bool CLogger::_log(unsigned nCode, std::string name, std::string message)
 		case 1: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN); break;
 		case 2: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_INTENSITY); break;
 		}
-		cout << msg << endl;
+		write(msg);
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), Info.wAttributes);
 	}
 	return (nSeverity <= 1);
+}
+
+void CLogger::write(std::string msg)
+{
+	cout << msg << endl;
 }

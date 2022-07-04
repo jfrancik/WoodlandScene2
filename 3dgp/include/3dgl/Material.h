@@ -41,14 +41,19 @@ freely, subject to the following restrictions:
 #include "3dglapi.h"
 
 struct aiMaterial;
+struct aiTexture;
 
 namespace _3dgl
 {
 	class C3dglProgram;
+	class C3dglModel;
 
 	class MY3DGL_API C3dglMaterial
 	{
 	private:
+		// owner model
+		C3dglModel* m_pOwner;
+
 		// texture id
 		unsigned m_idTexture[GL_TEXTURE31 - GL_TEXTURE0 + 1];
 
@@ -60,7 +65,7 @@ namespace _3dgl
 		static unsigned c_idTexBlank;
 
 	public:
-		C3dglMaterial();
+		C3dglMaterial(C3dglModel *pOwner);
 		void create(const aiMaterial* pMat, const char* pDefTexPath);
 		void destroy();
 
@@ -84,10 +89,12 @@ namespace _3dgl
 
 		void loadTexture(GLenum texUnit, std::string strPath);
 		void loadTexture(GLenum texUnit, std::string strTexRootPath, std::string strPath);
+		void loadTexture(GLenum texUnit, const aiTexture* pTexture);
 		void loadTexture(GLenum texUnit);
 
 		void loadTexture(std::string strPath)								{ loadTexture(GL_TEXTURE0, strPath); }
 		void loadTexture(std::string strTexRootPath, std::string strPath)	{ loadTexture(GL_TEXTURE0, strTexRootPath, strPath); }
+		void loadTexture(const aiTexture* pTexture)							{ loadTexture(GL_TEXTURE0, pTexture); }
 		void loadTexture()													{ loadTexture(GL_TEXTURE0); }
 	};
 }

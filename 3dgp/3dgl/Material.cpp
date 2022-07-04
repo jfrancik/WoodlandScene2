@@ -7,6 +7,7 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <GL/glew.h>
 #include <3dgl/Material.h>
 #include <3dgl/Bitmap.h>
+#include <3dgl/Model.h>
 #include <3dgl/Shader.h>
 
 // assimp include file
@@ -17,7 +18,7 @@ using namespace _3dgl;
 
 unsigned C3dglMaterial::c_idTexBlank = 0xFFFFFFFF;
 
-C3dglMaterial::C3dglMaterial()
+C3dglMaterial::C3dglMaterial(C3dglModel* pOwner) : m_pOwner(pOwner)
 {
 	memset(m_idTexture, 0xFFFFFFFF, sizeof(m_idTexture));
 	m_bAmb = m_bDiff = m_bSpec = m_bEmiss = m_bShininess = false;
@@ -91,25 +92,32 @@ void C3dglMaterial::render(C3dglProgram *pProgram)
 
 void C3dglMaterial::loadTexture(GLenum texUnit, string strDefTexPath, string strPath)
 {
-	// prepare path
-	std::ifstream f(strPath);
-	if (f.is_open())
+	// first of all, check for the embedded texture!
+	const aiTexture *pTexture = m_pOwner->GetScene()->GetEmbeddedTexture(strPath.c_str());
+	if (pTexture)
+		loadTexture(texUnit, pTexture);
+	else
 	{
-		f.close();
+		// prepare path
+		std::ifstream f(strPath);
+		if (f.is_open())
+		{
+			f.close();
+		}
+		else if (!strDefTexPath.empty())
+		{
+			size_t i = strPath.find_last_of("/\\");
+			if (i != string::npos) strPath = strPath.substr(i + 1);
+
+
+			if (strDefTexPath.back() == '/' || strDefTexPath.back() == '\\')
+				strPath = strDefTexPath + strPath;
+			else
+				strPath = strDefTexPath + "/" + strPath;
+		}
+
+		loadTexture(texUnit, strPath);
 	}
-	else if (!strDefTexPath.empty())
-	{
-		size_t i = strPath.find_last_of("/\\");
-		if (i != string::npos) strPath = strPath.substr(i + 1);
-
-
-		if (strDefTexPath.back() == '/' || strDefTexPath.back() == '\\')
-			strPath = strDefTexPath + strPath;
-		else
-			strPath = strDefTexPath + "/" + strPath;
-	}
-
-	loadTexture(texUnit, strPath);
 }
 
 void C3dglMaterial::loadTexture(GLenum texUnit, string strPath)
@@ -117,6 +125,24 @@ void C3dglMaterial::loadTexture(GLenum texUnit, string strPath)
 	// generate IL image id
 	C3dglBitmap bm;
 	if (bm.load(strPath, GL_RGBA))
+	{
+		// generate texture id
+		glGenTextures(1, &m_idTexture[texUnit - GL_TEXTURE0]);
+
+		// load texture
+		glActiveTexture(texUnit);
+		glBindTexture(GL_TEXTURE_2D, m_idTexture[texUnit - GL_TEXTURE0]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	}
+}
+
+void C3dglMaterial::loadTexture(GLenum texUnit, const aiTexture* pTexture)
+{
+	// generate texture from aiTexture data
+	C3dglBitmap bm;
+	if (bm.load(pTexture, GL_RGBA))
 	{
 		// generate texture id
 		glGenTextures(1, &m_idTexture[texUnit - GL_TEXTURE0]);

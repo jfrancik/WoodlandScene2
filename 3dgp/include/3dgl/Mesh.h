@@ -47,8 +47,10 @@ namespace _3dgl
 
 	class MY3DGL_API C3dglMesh : public C3dglObject
 	{
-		// Owner
+		// Owner and identification data name
 		C3dglModel *m_pOwner;
+		std::string m_name;
+		const aiMesh *m_pMesh;
 
 		// VAO (Vertex Array Object) id
 		GLuint m_idVAO;
@@ -58,10 +60,10 @@ namespace _3dgl
 		GLuint mIndexId;	// index buffer id
 
 		// statistics
-		unsigned m_nVertices;		// number of vertices
-		unsigned m_nUVComponents;	// number of UV coords - must be 2
-		unsigned m_indexSize;		// number of elements to draw (size of index buffer)
-		unsigned m_nBones;			// number of bones
+		size_t m_nVertices;			// number of vertices
+		size_t m_nUVComponents;		// number of UV coords - must be 2
+		size_t m_indexSize;			// number of elements to draw (size of index buffer)
+		size_t m_nBones;			// number of bones
 
 		// Material Index - points to the main m_materials collection
 		size_t m_nMaterialIndex;
@@ -70,10 +72,10 @@ namespace _3dgl
 		glm::vec3 m_aabb[2];
 	
 	protected:
-		unsigned getBuffers(const aiMesh* pMesh, GLuint attribId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
-		unsigned getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t *indSize);
+		size_t getBuffers(GLuint attribId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
+		size_t getIndexBuffer(void** indexData, size_t *indSize);
 		void cleanUp(void** attrData, void *indexData);		// call after getBuffers well data no longer required
-		void setupBoundingVolume(const aiMesh* pMesh);
+		void setupBoundingVolume();
 
 	public:
 		C3dglMesh(C3dglModel* pOwner);
@@ -93,14 +95,14 @@ namespace _3dgl
 		// Using ASSIMP data, read attribute or index buffer data. A binary buffer will be allocated and a pointer stored in *ppData, 
 		// *indSize will be filled with the element size and the function returns number of elements (0 if data unavailable).
 		// The retuen value is also: number of vertices for getAttrData, number of indices for getIndexData.
-		unsigned getAttrData(const aiMesh* pMesh, enum ATTRIB_STD attr, void** ppData, size_t* indSize);
-		unsigned getIndexData(const aiMesh* pMesh, void** ppData, size_t* indSize);
+		size_t getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize);
+		size_t getIndexData(void** ppData, size_t* indSize);
 
 		// Statistics
-		unsigned getVertexCount()		{ return m_nVertices; }
-		unsigned getUVComponentCount()	{ return m_nUVComponents; }
-		unsigned getIndexCount()		{ return m_indexSize; }
-		unsigned getBoneCount()			{ return m_nBones; }
+		size_t getVertexCount()			{ return m_nVertices; }
+		size_t getUVComponentCount()	{ return m_nUVComponents; }
+		size_t getIndexCount()			{ return m_indexSize; }
+		size_t getBoneCount()			{ return m_nBones; }
 
 		// Material functions
 		C3dglMaterial *getMaterial();

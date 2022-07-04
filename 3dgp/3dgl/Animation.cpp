@@ -36,31 +36,41 @@ double C3dglAnimation::getTicksPerSecond()
 	return m_pAnim->mTicksPerSecond; 
 }
 
-
-void C3dglAnimation::create(const aiAnimation* pAnim, map<string, const aiNode*>& mymap)
+void C3dglAnimation::create(const aiAnimation* pAnim, const aiNode* pRootNode)
 {
 	m_pAnim = pAnim;
 
-	// create the lookUp structure
-	int i = 0;
-	for (aiNodeAnim* pNodeAnim : vector<aiNodeAnim*>(pAnim->mChannels, pAnim->mChannels + pAnim->mNumChannels))
+	// Create the m_lookUp table that maps aiNode* node addresses into pair<channel id, bone id>:
+	// Channel Id is the seq no in the animation channel buffer and bone id is stored with the owner model and used directly by shaders
+
+	// first: map node names into node addresses (using a recursive lambda function)
+	map<string, const aiNode*> mymap;
+	auto __createMap = [&](auto&& __createMap, const aiNode* pNode, std::map<std::string, const aiNode*>& map) -> void {
+		map[pNode->mName.data] = pNode;
+		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+			__createMap(__createMap, pChildNode, map);
+	};
+	__createMap(__createMap, pRootNode, mymap);
+
+	// create the lookUp structure for the nodes included in the animation channel
+	for (unsigned idChannel = 0; idChannel < pAnim->mNumChannels; idChannel++)
 	{
-		string strNodeName = pNodeAnim->mNodeName.data;
+		string strNodeName = pAnim->mChannels[idChannel]->mNodeName.data;
 		const aiNode* pNode = mymap[strNodeName];
-		size_t id = m_pOwner->getBoneId(strNodeName);
-		m_lookUp[pNode] = pair<size_t, size_t>(i++, id);
+		size_t idBone = m_pOwner->getBoneId(strNodeName);
+		m_lookUp[pNode] = pair<size_t, size_t>(idChannel, idBone);
 	}
 
-	// rest of the nodes
-	for (auto& mypair : mymap)
+	// Some bones have a boneId but are not described in animation channels...
+	for (unsigned idBone = 0; idBone < m_pOwner->getBoneCount(); idBone++)
 	{
-		// check if the aiNode is already known in the look-up table
-		if (m_lookUp.find(mypair.second) == m_lookUp.end())
-		{
-			size_t id = m_pOwner->getBoneId(mypair.first);
-			m_lookUp[mypair.second] = pair<size_t, size_t>(0xffff, id);
-		}
+		const aiNode* pNode = mymap[m_pOwner->getBoneName(idBone)];
+		if (m_lookUp.find(pNode) != m_lookUp.end())
+			continue;	// if the node already in the look-up structure, no longer interesting
+		m_lookUp[pNode] = pair<size_t, size_t>(size_t(-1), idBone);
 	}
+
+	// If a node has no boneId and no ChannelIf - not interesting!
 }
 
 static aiVector3D Interpolate(float AnimationTime, const aiVectorKey* pKeys, unsigned nKeys)
@@ -100,42 +110,41 @@ static aiQuaternion Interpolate(float AnimationTime, const aiQuatKey* pKeys, uns
 	return q.Normalize();
 }
 
-void C3dglAnimation::readNodeHierarchy(float time, const aiNode* pNode, const glm::mat4& t, std::vector<glm::mat4>& transforms)
+static aiMatrix4x4 Interpolate(float AnimationTime, const aiNodeAnim* pNodeAnim)
 {
-	glm::mat4 transform;
+	// Interpolate position, rotation and scaling
+	aiVector3D vecTranslate = Interpolate(AnimationTime, pNodeAnim->mPositionKeys, pNodeAnim->mNumPositionKeys);
+	aiQuaternion quatRotate = Interpolate(AnimationTime, pNodeAnim->mRotationKeys, pNodeAnim->mNumRotationKeys);
+	aiVector3D vecScale = Interpolate(AnimationTime, pNodeAnim->mScalingKeys, pNodeAnim->mNumScalingKeys);
+
+	// create matrices
+	aiMatrix4x4 matTranslate, matScale;
+	aiMatrix4x4::Translation(vecTranslate, matTranslate);
+	aiMatrix4x4 matRotate = aiMatrix4x4(quatRotate.GetMatrix());
+	aiMatrix4x4::Scaling(vecScale, matScale);
+	return matTranslate * matRotate * matScale;
+}
+
+
+void C3dglAnimation::readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT)
+{
+	glm::mat4 transform = parentT * glm::transpose(glm::make_mat4((float*)&pNode->mTransformation));
 
 	auto it = m_lookUp.find(pNode);
 	if (it != m_lookUp.end())
 	{
-		size_t iAnimInd = it->second.first;
-		if (iAnimInd < m_pAnim->mNumChannels)
+		size_t idChannel = it->second.first;
+		size_t idBone = it->second.second;
+	
+		if (idChannel < m_pAnim->mNumChannels)
 		{
-			const aiNodeAnim* pNodeAnim = m_pAnim->mChannels[iAnimInd];
-
-			// Interpolate position, rotation and scaling
-			aiVector3D vecTranslate = Interpolate(time, pNodeAnim->mPositionKeys, pNodeAnim->mNumPositionKeys);
-			aiQuaternion quatRotate = Interpolate(time, pNodeAnim->mRotationKeys, pNodeAnim->mNumRotationKeys);
-			aiVector3D vecScale = Interpolate(time, pNodeAnim->mScalingKeys, pNodeAnim->mNumScalingKeys);
-
-			// create matrices
-			aiMatrix4x4 matTranslate, matScale;
-			aiMatrix4x4::Translation(vecTranslate, matTranslate);
-			aiMatrix4x4 matRotate = aiMatrix4x4(quatRotate.GetMatrix());
-			aiMatrix4x4::Scaling(vecScale, matScale);
-			aiMatrix4x4 mat = matTranslate * matRotate * matScale;
-
-			// Combine the above transformations
-			transform = glm::make_mat4((float*)&mat) * t;
+			aiMatrix4x4 mat = Interpolate(time, m_pAnim->mChannels[idChannel]);
+			transform = parentT * glm::transpose(glm::make_mat4((float*)&mat));
 		}
-		else
-			transform = t * glm::make_mat4((float*)&pNode->mTransformation);
 
-
-		size_t iBone = it->second.second;
-		if (iBone < m_pOwner->getBoneCount())
-			transforms[iBone] = glm::transpose(m_pOwner->getBone(iBone) * transform * m_pOwner->getGlobalTransposedTransform());
+		if (idBone < m_pOwner->getBoneCount())
+			transforms[idBone] = m_pOwner->getGlobalInvT() * transform * m_pOwner->getBone(idBone);
 	}
-
 	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		readNodeHierarchy(time, pChildNode, transform, transforms);
+		readNodeHierarchy(time, pChildNode, transforms, transform);
 }

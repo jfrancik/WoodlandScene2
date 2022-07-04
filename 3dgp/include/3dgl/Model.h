@@ -50,8 +50,6 @@ freely, subject to the following restrictions:
 
 #include "../glm/mat4x4.hpp"
 
-#pragma warning(disable: 4251)
-
 struct aiScene;
 struct aiNode;
 
@@ -61,39 +59,38 @@ namespace _3dgl
 
 	class MY3DGL_API C3dglModel : public C3dglObject
 	{
-		const aiScene *m_pScene;					// parent scene (the main AssImp object)
+		const aiScene* m_pScene;					// parent scene (the main AssImp object)
 		std::string m_name;							// model name (derived from the filename)
-		
+		bool m_bFBXImportPreservePivots;			// binary flag needed to tweak some quirky effects in AssImp FBX importer. Should be set to false
+
 		// vectrors of meshes, materials and animations
+#pragma warning(push)
+#pragma warning(disable: 4251)
 		std::vector<C3dglMesh> m_meshes;
 		std::vector<C3dglMaterial> m_materials;
 		std::vector<C3dglAnimation> m_animations;
-
-		// shader-related data
-		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL is fixed pipeline
-		GLuint m_attribId[ATTR_LAST];				// attrib values read from the shader program at the load time
 
 		// Bones: two-way mapping
 		std::vector<std::pair<std::string, glm::mat4> > m_vecBones;	// maps ids to pairs<bone name, bone offset matrix>
 		std::map<std::string, size_t> m_mapBones;	// maps bone names back to ids
 		glm::mat4 m_globInvT;						// global transformation matrix (transposed)
+#pragma warning(pop)
+
+		// shader-related data
+		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL is fixed pipeline
+		GLuint m_attribId[ATTR_LAST];				// attrib values read from the shader program at the load time
 
 	public:
 		C3dglModel();
-		~C3dglModel()							{ destroy(); }
+		~C3dglModel() { destroy(); }
 
-		const aiScene *GetScene()				{ return m_pScene; }
-
-		// enable or disable additional AssImp logger. Default: disabled
-		enum AssimpLoggingLevel { NORMAL, DEBUGGING, VERBOSE };
-		static void enableAssimpLoggingLevel(AssimpLoggingLevel = NORMAL);
-		static void disableAssimpLoggingLevel();
+		const aiScene* GetScene() { return m_pScene; }
 
 		// Loading
 		// load a model from file
 		bool load(const char* pFile, unsigned int flags = 0);
 		// create a model from AssImp handle - useful if you are using AssImp directly
-		void create(const aiScene *pScene);
+		void create(const aiScene* pScene);
 		// create material information and load textures from MTL file - must be preceded by either load or create
 		void loadMaterials(const char* pDefTexPath = NULL);
 		// load animations. By default loads animations from the current model. 
@@ -102,6 +99,16 @@ namespace _3dgl
 		unsigned loadAnimations(C3dglModel* pCompatibleModel);
 		// destroy the model (releases all meshes, materials and animations loaded)
 		void destroy();
+
+		// enable or disable additional AssImp logger. Default: disabled
+		enum AssimpLoggingLevel { NORMAL, DEBUGGING, VERBOSE };
+		static void enableAssimpLoggingLevel(AssimpLoggingLevel = NORMAL);
+		static void disableAssimpLoggingLevel();
+
+		// Controls some quirky behaviour in AssImp FBX importer. By default set to false (disable preserve pivots mode)
+		// Can be changed to true in case the model doesn't appear right. Note: this flag should be set before calling load funcion!
+		bool getFBXImportPreservePivotsFlag()		 { return m_bFBXImportPreservePivots; }
+		void setFBXImportPreservePivotsFlag(bool b)	 { m_bFBXImportPreservePivots = b; }
 
 		// Rendering
 		// render the entire model
@@ -123,7 +130,7 @@ namespace _3dgl
 		size_t getMaterialCount()				{ return m_materials.size(); }
 		C3dglMaterial *getMaterial(size_t i)	{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
 		size_t getMaterialIndex(C3dglMaterial* p) { return p - &m_materials[0]; }
-		size_t createNewMaterial()				{ C3dglMaterial mat; size_t nIndex = m_materials.size(); m_materials.push_back(mat); return nIndex; }
+		size_t createNewMaterial()				{ C3dglMaterial mat(this); size_t nIndex = m_materials.size(); m_materials.push_back(mat); return nIndex; }
 
 		// Animation functions
 		bool hasAnimations()					{ return m_animations.size() > 0; }
@@ -140,14 +147,15 @@ namespace _3dgl
 		void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true);
 	
 		// Bone system functions
-		bool hasBones()							{ return m_vecBones.size() > 0; }
-		size_t getBoneCount()					{ return m_vecBones.size(); }
-		std::string getBoneName(size_t i)		{ return i < getBoneCount() ? m_vecBones[i].first : ""; }
-		glm::mat4 getBone(size_t i)				{ return i < getBoneCount() ? m_vecBones[i].second : glm::mat4(1); }
-		bool hasBone(std::string boneName);		// true if bone exists in the model
-		size_t getBoneId(std::string boneName);	// returns bone id, (size_t)-1 if bone name unknown
+		bool hasBones()							{ return m_vecBones.size() > 0; }		// true if any bones found in the model
+		size_t getBoneCount()					{ return m_vecBones.size(); }			// returns the bone count
+		bool hasBone(size_t id)					{ return id < getBoneCount(); }			// true if bone exists in the model
+		bool hasBone(std::string boneName)		{ return m_mapBones.find(boneName) != m_mapBones.end(); }		// true if bone exists in the model
+		std::string getBoneName(size_t id)		{ return hasBone(id) ? m_vecBones[id].first : ""; }				// name of the bone
+		glm::mat4 getBone(size_t id)			{ return hasBone(id) ? m_vecBones[id].second : glm::mat4(1); }	// bone matrix
+		size_t getBoneId(std::string boneName);								// returns bone id, (size_t)-1 if bone name unknown
 		size_t getOrAddBone(std::string boneName, glm::mat4 offsetMatrix);	// as above, creates a new bone if bone name unknown yet
-		glm::mat4 getGlobalTransposedTransform(){ return m_globInvT; }
+		glm::mat4 getGlobalInvT()				{ return m_globInvT; }
 
 		// Bounding Box Functions
 		// BB for the entire model
@@ -156,6 +164,8 @@ namespace _3dgl
 		void getBB(unsigned iNode, glm::vec3 BB[2]);
 		// BB for a single node (low-level, mostly for internal use)
 		void getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m = glm::mat4(1));
+
+		void stats(unsigned level = 0);
 
 		std::string getName() { return "Model (" + m_name + ")"; }
 	};

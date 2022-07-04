@@ -84,6 +84,7 @@ bool init()
 	if (!terrain.loadHeightmap("models\\heightmap.png", 50)) return false;
 	if (!wolf.load("models\\wolf.dae")) return false;
 	wolf.loadAnimations();
+
 	if (!tree.load("models\\tree\\tree.3ds")) return false;
 	tree.loadMaterials("models\\tree");
 	tree.getMaterial(0)->loadTexture(GL_TEXTURE1, "models\\tree", "pine-trunk-norm.dds");

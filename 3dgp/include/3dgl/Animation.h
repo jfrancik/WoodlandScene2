@@ -68,13 +68,13 @@ namespace _3dgl
 	public:
 		C3dglAnimation(C3dglModel* pOwner);
 
-		void create(const aiAnimation* pAnim, std::map<std::string, const aiNode*> &mymap);
+		void create(const aiAnimation* pAnim, const aiNode* pRootNode);
 
 		std::string getName();
 		double getDuration();
 		double getTicksPerSecond();
 
-		void readNodeHierarchy(float time, const aiNode* pNode, const glm::mat4& t, std::vector<glm::mat4>& transforms);
+		void readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT = glm::mat4(1));
 	};
 }
 

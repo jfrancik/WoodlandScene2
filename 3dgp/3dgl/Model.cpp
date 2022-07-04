@@ -29,6 +29,7 @@ C3dglModel::C3dglModel() : C3dglObject(), m_attribId{ NEG1, NEG1, NEG1, NEG1,NEG
 { 
 	m_pScene = NULL; 
 	m_pProgram = 0;
+	m_bFBXImportPreservePivots = false;
 }
 
 void C3dglModel::enableAssimpLoggingLevel(AssimpLoggingLevel level)
@@ -46,14 +47,16 @@ bool C3dglModel::load(const char* pFile, unsigned int flags)
 	if (flags == 0)
 		flags = aiProcessPreset_TargetRealtime_MaxQuality;
 
-	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
 	m_name = pFile;
 	size_t i = m_name.find_last_of("/\\");
 	if (i != string::npos) m_name = m_name.substr(i + 1);
 	i = m_name.find_last_of(".");
 	if (i != string::npos) m_name = m_name.substr(0, i);
 
-	const aiScene* pScene = aiImportFile(pFile, flags);
+	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
+	aiPropertyStore* ps = ::aiCreatePropertyStore();
+	::aiSetImportPropertyInteger(ps, AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, m_bFBXImportPreservePivots);
+	const aiScene* pScene = aiImportFileExWithProperties(pFile, flags, NULL, ps);
 	if (pScene == NULL)
 		return log(M3DGL_ERROR_AI, aiGetErrorString());
 	create(pScene);
@@ -93,24 +96,17 @@ void C3dglModel::create(const aiScene* pScene)
 		else
 			mesh.create(*ppMesh++);
 
-	m_globInvT = glm::inverse(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation));	// transpose or invert - that is the question!
+	m_globInvT = glm::inverse(glm::transpose(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation)));
 }
 
 void C3dglModel::loadMaterials(const char* pTexRootPath)
 {
 	if (!m_pScene) return;
 
-	m_materials.resize(m_pScene->mNumMaterials, C3dglMaterial());
+	m_materials.resize(m_pScene->mNumMaterials, C3dglMaterial(this));
 	aiMaterial** ppMaterial = m_pScene->mMaterials;
 	for (C3dglMaterial& material : m_materials)
 		material.create(*ppMaterial++, pTexRootPath);
-}
-
-static void __createMap(const aiNode* pNode, std::map<std::string, const aiNode*>& map)
-{
-	map[pNode->mName.data] = pNode;
-	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		__createMap(pChildNode, map);
 }
 
 unsigned C3dglModel::loadAnimations()
@@ -132,15 +128,10 @@ unsigned C3dglModel::loadAnimations(C3dglModel* pCompatibleModel)
 		return 0;
 	}
 
-	// create animation look-up tables
-	map<string, const aiNode*> mymap;		// map of nodes
-	__createMap(GetScene()->mRootNode, mymap);
-
-
 	m_animations.resize(pScene->mNumAnimations, C3dglAnimation(this));
 	aiAnimation** ppAnimation = pScene->mAnimations;
 	for (C3dglAnimation& animation : m_animations)
-		animation.create(*ppAnimation++, mymap);
+		animation.create(*ppAnimation++, GetScene()->mRootNode);
 	
 	return pScene->mNumAnimations;
 }
@@ -198,9 +189,7 @@ void C3dglModel::render(glm::mat4 matrix)
 void C3dglModel::render(unsigned iNode, glm::mat4 matrix)
 {
 	// update transform
-	aiMatrix4x4 m = m_pScene->mRootNode->mTransformation;
-	aiTransposeMatrix4(&m);
-	matrix *= glm::make_mat4((GLfloat*)&m);
+	matrix *= glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation));
 
 	if (iNode <= getMainNodeCount())
 		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix);
@@ -222,11 +211,6 @@ void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecurs
 	aiTransposeMatrix4(&m2);
 
 	*((aiMatrix4x4*)pMatrix) = m2 * m1;
-}
-
-bool C3dglModel::hasBone(std::string boneName)
-{
-	return m_mapBones.find(boneName) != m_mapBones.end();
 }
 
 size_t C3dglModel::getBoneId(std::string boneName)
@@ -262,15 +246,11 @@ void C3dglModel::getBB(glm::vec3 BB[2])
 
 void C3dglModel::getBB(unsigned iNode, glm::vec3 BB[2])
 {
-	// update transform
-	aiMatrix4x4 m = m_pScene->mRootNode->mTransformation;
-	aiTransposeMatrix4(&m);
-
 	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
 	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
 
 	if (iNode <= getMainNodeCount())
-		getBB(m_pScene->mRootNode->mChildren[iNode], BB, glm::make_mat4((GLfloat*)&m));
+		getBB(m_pScene->mRootNode->mChildren[iNode], BB, glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation)));
 }
 
 void C3dglModel::getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
@@ -325,8 +305,52 @@ void C3dglModel::getAnimData(unsigned iAnim, float time, vector<glm::mat4>& tran
 		if (fTicksPerSecond == 0) fTicksPerSecond = 25.0f;
 		time = fmod(time * fTicksPerSecond, (float)getAnimation(iAnim)->getDuration());
 
-		glm::mat4 t(1);
-		m_animations[iAnim].readNodeHierarchy(time, GetScene()->mRootNode, t, transforms);
+		m_animations[iAnim].readNodeHierarchy(time, GetScene()->mRootNode, transforms);
 	}
 }
 
+void C3dglModel::stats(unsigned level)
+{
+	// prep: count nodes
+	unsigned nNodes = 0;
+	auto countNodes = [&](auto&& countNodes, const aiNode* pNode) -> void {
+		nNodes++;
+		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+			countNodes(countNodes, pChildNode);
+	};
+	countNodes(countNodes, m_pScene->mRootNode);
+
+	CLogger::write("** Statistics for the model: {}", getName());
+	CLogger::write("Nodes: {}, Meshes: {}, Materials: {}, Bones: {}, Animations: {}, Channels: {}",
+		nNodes, getMeshCount(), getMaterialCount(), getBoneCount(), getAnimationCount(), hasAnimations() ? m_pScene->mAnimations[0]->mNumChannels : 0);
+	if (level == 0) return;
+
+	auto statNode = [&](auto&& statNode, string pred, aiNode* pNode) -> void
+	{
+		size_t idBone = getBoneId(pNode->mName.data);
+		if (hasBone(idBone))
+			CLogger::write("{}Node: {} - BONE #{}", pred, pNode->mName.data, idBone);
+		else
+			CLogger::write("{}Node: {} (no bone identified)", pred, pNode->mName.data);
+
+		for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
+			CLogger::write("{}Mesh #{} ({}) - {} vertices, {} faces, {} bones", pred + "-", iMesh , m_pScene->mMeshes[iMesh]->mName.data, m_pScene->mMeshes[iMesh]->mNumVertices, m_pScene->mMeshes[iMesh]->mNumFaces, m_pScene->mMeshes[iMesh]->mNumBones);
+		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+			statNode(statNode, pred + " ", pChildNode);
+	};
+	statNode(statNode, "", m_pScene->mRootNode);
+
+	if (m_pScene->mNumAnimations > 0)
+	{
+		CLogger::write("Animation channels:");
+		for (unsigned idChannel = 0; idChannel < m_pScene->mAnimations[0]->mNumChannels; idChannel++)
+		{
+			string strNodeName = m_pScene->mAnimations[0]->mChannels[idChannel]->mNodeName.data;
+			size_t idBone = getBoneId(strNodeName);
+			if (hasBone(idBone))
+				CLogger::write(" {}. {} - BONE #{}", idChannel, strNodeName, idBone);
+			else
+				CLogger::write(" {}. {} - BONELESS", idChannel, strNodeName);
+		}
+	}
+}

@@ -21,7 +21,7 @@ using namespace _3dgl;
 ** struct C3dglMESH
 */
 
-C3dglMesh::C3dglMesh(C3dglModel* pOwner) : m_pOwner(pOwner), m_aabb{ glm::vec3(), glm::vec3() }, m_id{ 0, 0, 0, 0, 0, 0, 0, 0 }
+C3dglMesh::C3dglMesh(C3dglModel* pOwner) : m_pOwner(pOwner), m_pMesh(NULL), m_aabb{ glm::vec3(), glm::vec3() }, m_id{ 0, 0, 0, 0, 0, 0, 0, 0 }
 {
 	m_idVAO = 0;
 	m_nVertices = m_nUVComponents = m_indexSize = m_nBones = 0;
@@ -29,15 +29,15 @@ C3dglMesh::C3dglMesh(C3dglModel* pOwner) : m_pOwner(pOwner), m_aabb{ glm::vec3()
 	m_nMaterialIndex = 0;
 }
 
-unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST])
+size_t C3dglMesh::getBuffers(GLuint attrId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST])
 {
 	fill(attrData, attrData + ATTR_LAST, (void*)NULL);
 	fill(attrSize, attrSize + ATTR_LAST, 0);
 
 	// Some initial statistics
-	m_nVertices = pMesh->mNumVertices;				// number of vertices - must be > 0
-	m_nUVComponents = pMesh->mNumUVComponents[0];	// number of UV coords - must be 2
-	m_nBones = pMesh->mNumBones;						// number of bones (for skeletal animation)
+	m_nVertices = m_pMesh->mNumVertices;				// number of vertices - must be > 0
+	m_nUVComponents = m_pMesh->mNumUVComponents[0];		// number of UV coords - must be 2
+	m_nBones = m_pMesh->mNumBones;						// number of bones (for skeletal animation)
 
 	// Possible warnings...
 	if (m_nVertices == 0) { log(M3DGL_WARNING_NO_VERTICES); return 0; }
@@ -48,8 +48,8 @@ unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], vo
 	if (attrId[ATTR_TEXCOORD] != (GLuint)-1 && m_nUVComponents == 2)
 	{
 		pTexCoords = new GLfloat[m_nVertices * 2];
-		for (unsigned i = 0; i < m_nVertices; i++)
-			memcpy(&pTexCoords[i * 2], &pMesh->mTextureCoords[0][i], sizeof(GLfloat) * 2);
+		for (size_t i = 0; i < m_nVertices; i++)
+			memcpy(&pTexCoords[i * 2], &m_pMesh->mTextureCoords[0][i], sizeof(GLfloat) * 2);
 	}
 
 	// Create compatible Bone Id and Weight buffers - based on http://ogldev.atspace.co.uk/
@@ -62,14 +62,14 @@ unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], vo
 		pBoneWeights = new float[m_nVertices * MAX_BONES_PER_VERTEX];
 		fill(pBoneWeights, pBoneWeights + m_nVertices * MAX_BONES_PER_VERTEX, 0.0f);
 
-		log(M3DGL_SUCCESS_BONES_FOUND, pMesh->mNumBones);
+		log(M3DGL_SUCCESS_BONES_FOUND, m_pMesh->mNumBones);
 
 		// for each bone:
-		for (aiBone* pBone : vector<aiBone*>(pMesh->mBones, pMesh->mBones + pMesh->mNumBones))
+		for (aiBone* pBone : vector<aiBone*>(m_pMesh->mBones, m_pMesh->mBones + m_pMesh->mNumBones))
 		{
 			// determine bone index from its name
 			// if bone isn't yet known, it will be added
-			size_t iBone = m_pOwner->getOrAddBone(pBone->mName.data, glm::make_mat4((float*)&pBone->mOffsetMatrix));
+			size_t iBone = m_pOwner->getOrAddBone(pBone->mName.data, glm::transpose(glm::make_mat4((float*)&pBone->mOffsetMatrix)));
 
 			// collect bone weights
 			for (aiVertexWeight& weight : vector<aiVertexWeight>(pBone->mWeights, pBone->mWeights + pBone->mNumWeights))
@@ -89,7 +89,7 @@ unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], vo
 		}
 
 		// normalise the weights
-		for (unsigned i = 0; i < m_nVertices * MAX_BONES_PER_VERTEX; i += MAX_BONES_PER_VERTEX)
+		for (size_t i = 0; i < m_nVertices * MAX_BONES_PER_VERTEX; i += MAX_BONES_PER_VERTEX)
 		{
 			float total = 0.0f;
 			for (unsigned j = 0; j < MAX_BONES_PER_VERTEX; j++)
@@ -99,9 +99,9 @@ unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], vo
 		}
 	}
 
-	void* _data[] = { pMesh->mVertices, pMesh->mNormals, pTexCoords, pMesh->mTangents, pMesh->mBitangents, pMesh->mColors[0], pBoneIds, pBoneWeights };
-	size_t _size[] = { sizeof(pMesh->mVertices[0]), sizeof(pMesh->mNormals[0]), sizeof(pTexCoords[0]) * m_nUVComponents,
-		sizeof(pMesh->mTangents[0]), sizeof(pMesh->mBitangents[0]), sizeof(pMesh->mColors[0][0]), sizeof(pBoneIds[0]) * MAX_BONES_PER_VERTEX, sizeof(pBoneWeights[0]) * MAX_BONES_PER_VERTEX };
+	void* _data[] = { m_pMesh->mVertices, m_pMesh->mNormals, pTexCoords, m_pMesh->mTangents, m_pMesh->mBitangents, m_pMesh->mColors[0], pBoneIds, pBoneWeights };
+	size_t _size[] = { sizeof(m_pMesh->mVertices[0]), sizeof(m_pMesh->mNormals[0]), sizeof(pTexCoords[0]) * m_nUVComponents,
+		sizeof(m_pMesh->mTangents[0]), sizeof(m_pMesh->mBitangents[0]), sizeof(m_pMesh->mColors[0][0]), sizeof(pBoneIds[0]) * MAX_BONES_PER_VERTEX, sizeof(pBoneWeights[0]) * MAX_BONES_PER_VERTEX };
 
 	for (unsigned attr = ATTR_VERTEX; attr < ATTR_LAST; attr++)
 		if (attrId[attr] != (GLuint)-1)
@@ -115,19 +115,19 @@ unsigned C3dglMesh::getBuffers(const aiMesh* pMesh, GLuint attrId[ATTR_LAST], vo
 	return m_nVertices;
 }
 
-unsigned C3dglMesh::getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t* indSize)
+size_t C3dglMesh::getIndexBuffer(void** indexData, size_t* indSize)
 {
 	*indexData = NULL;
 
-	unsigned nIndices = pMesh->mNumFaces;		// number of faces - must be > 0
-	unsigned nVertPerFace = pMesh->mFaces[0].mNumIndices;	// vertices per face - must be == 3
+	size_t nIndices = m_pMesh->mNumFaces;		// number of faces - must be > 0
+	size_t nVertPerFace = m_pMesh->mFaces[0].mNumIndices;	// vertices per face - must be == 3
 
 	// Possible warnings...
 	if (nVertPerFace != 3) { log(M3DGL_WARNING_NON_TRIANGULAR_MESH); return 0; }
 
 	unsigned *pIndices = new unsigned[nIndices * nVertPerFace];
 	unsigned* p = pIndices;
-	for (aiFace f : vector<aiFace>(pMesh->mFaces, pMesh->mFaces + nIndices))
+	for (aiFace f : vector<aiFace>(m_pMesh->mFaces, m_pMesh->mFaces + nIndices))
 		for (unsigned n : vector<unsigned>(f.mIndices, f.mIndices + f.mNumIndices))
 			*p++ = n;
 
@@ -144,11 +144,11 @@ void C3dglMesh::cleanUp(void** attrData, void *indexData)
 	if (indexData) delete[] indexData;
 }
 
-void C3dglMesh::setupBoundingVolume(const aiMesh* pMesh)
+void C3dglMesh::setupBoundingVolume()
 {
 	// find the BB (bounding box)
-	m_aabb[0] = m_aabb[1] = glm::vec3(pMesh->mVertices[0].x, pMesh->mVertices[0].y, pMesh->mVertices[0].z);
-	for (aiVector3D vec : vector<aiVector3D>(pMesh->mVertices, pMesh->mVertices + m_nVertices))
+	m_aabb[0] = m_aabb[1] = glm::vec3(m_pMesh->mVertices[0].x, m_pMesh->mVertices[0].y, m_pMesh->mVertices[0].z);
+	for (aiVector3D vec : vector<aiVector3D>(m_pMesh->mVertices, m_pMesh->mVertices + m_nVertices))
 	{
 		m_aabb[0].x = min(m_aabb[0].x, vec.x);
 		m_aabb[1].x = max(m_aabb[1].x, vec.x);
@@ -161,6 +161,12 @@ void C3dglMesh::setupBoundingVolume(const aiMesh* pMesh)
 
 void C3dglMesh::create(const aiMesh* pMesh, GLuint attrId[ATTR_LAST])
 {
+	if (!pMesh) return;
+
+	// Some initial statistics
+	m_pMesh = pMesh;									// aiMesg data for later reference
+	m_name = pMesh->mName.data;							// mesh name
+
 	// create VAO
 	glGenVertexArrays(1, &m_idVAO);
 	glBindVertexArray(m_idVAO);
@@ -168,7 +174,7 @@ void C3dglMesh::create(const aiMesh* pMesh, GLuint attrId[ATTR_LAST])
 	// collect buffered attribute data
 	void* attrData[ATTR_LAST];
 	size_t attrSize[ATTR_LAST];
-	m_nVertices = getBuffers(pMesh, attrId, attrData, attrSize);
+	m_nVertices = getBuffers(attrId, attrData, attrSize);
 
 	// generate attribute buffers, then bind them and send data to OpenGL
 	for (unsigned attr = ATTR_VERTEX; attr < ATTR_LAST; attr++)
@@ -189,7 +195,7 @@ void C3dglMesh::create(const aiMesh* pMesh, GLuint attrId[ATTR_LAST])
 	// generate the index buffer, then bind it and send data to OpenGL
 	void* pIndData;
 	size_t indSize;
-	m_indexSize = getIndexBuffer(pMesh, &pIndData, &indSize);
+	m_indexSize = getIndexBuffer(&pIndData, &indSize);
 
 	glGenBuffers(1, &mIndexId);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIndexId);
@@ -202,14 +208,20 @@ void C3dglMesh::create(const aiMesh* pMesh, GLuint attrId[ATTR_LAST])
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	// Material information
-	m_nMaterialIndex = pMesh->mMaterialIndex;
+	m_nMaterialIndex = m_pMesh->mMaterialIndex;
 
 	// find the BB (bounding box)
-	setupBoundingVolume(pMesh);
+	setupBoundingVolume();
 }
 
 void C3dglMesh::create(const aiMesh* pMesh)
 {
+	if (!pMesh) return;
+
+	// Some initial statistics
+	m_pMesh = pMesh;									// aiMesg data for later reference
+	m_name = m_pMesh->mName.data;						// mesh name
+
 	// create VAO
 	glGenVertexArrays(1, &m_idVAO);
 	glBindVertexArray(m_idVAO);
@@ -218,7 +230,7 @@ void C3dglMesh::create(const aiMesh* pMesh)
 	GLuint attrId[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1 };
 	void* attrData[ATTR_LAST];
 	size_t attrSize[ATTR_LAST];
-	m_nVertices = getBuffers(pMesh, attrId, attrData, attrSize);
+	m_nVertices = getBuffers(attrId, attrData, attrSize);
 
 	// generate attribute buffers, then bind them and send data to OpenGL
 	for (unsigned attr = ATTR_VERTEX; attr <= ATTR_TEXCOORD; attr++)
@@ -239,7 +251,7 @@ void C3dglMesh::create(const aiMesh* pMesh)
 
 	// first, convert indices to occupy contageous memory space
 	vector<unsigned> indices;
-	for (aiFace f : vector<aiFace>(pMesh->mFaces, pMesh->mFaces + pMesh->mNumFaces))
+	for (aiFace f : vector<aiFace>(m_pMesh->mFaces, m_pMesh->mFaces + m_pMesh->mNumFaces))
 		for (unsigned n : vector<unsigned>(f.mIndices, f.mIndices + f.mNumIndices))
 			indices.push_back(n);
 
@@ -248,8 +260,8 @@ void C3dglMesh::create(const aiMesh* pMesh)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIndexId);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0]) * indices.size(), &indices[0], GL_STATIC_DRAW);
 
-	m_indexSize = (unsigned)indices.size();
-	m_nMaterialIndex = pMesh->mMaterialIndex;
+	m_indexSize = indices.size();
+	m_nMaterialIndex = m_pMesh->mMaterialIndex;
 
 	// Reset VAO & buffers
 	glBindVertexArray(0);
@@ -257,13 +269,13 @@ void C3dglMesh::create(const aiMesh* pMesh)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	// find the BB (bounding box)
-	setupBoundingVolume(pMesh);
+	setupBoundingVolume();
 }
 
 void C3dglMesh::render()
 {
 	glBindVertexArray(m_idVAO);
-	glDrawElements(GL_TRIANGLES, m_indexSize, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, (GLsizei)m_indexSize, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 }
 
@@ -276,21 +288,29 @@ void C3dglMesh::destroy()
 	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
 }
 
-unsigned C3dglMesh::getAttrData(const aiMesh* pMesh, enum ATTRIB_STD attr, void** ppData, size_t* indSize)
+size_t C3dglMesh::getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize)
 {
+	*ppData = NULL;
+	*indSize = NULL;
+	if (!m_pMesh) return 0;
+
 	GLuint attrId[] = { (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1, (GLuint)-1 };
 	attrId[attr] = 1;
 	void* attrData[ATTR_LAST];
 	size_t attrSize[ATTR_LAST];
-	m_nVertices = getBuffers(pMesh, attrId, attrData, attrSize);
+	m_nVertices = getBuffers(attrId, attrData, attrSize);
 	*ppData = attrData[attr];
 	*indSize = attrSize[attr];
 	return m_nVertices;
 }
 
-unsigned C3dglMesh::getIndexData(const aiMesh* pMesh, void** ppData, size_t* indSize)
+size_t C3dglMesh::getIndexData(void** ppData, size_t* indSize)
 {
-	return getIndexBuffer(pMesh, ppData, indSize);
+	*ppData = NULL;
+	*indSize = NULL;
+	if (!m_pMesh) return 0;
+
+	return getIndexBuffer(ppData, indSize);
 }
 
 C3dglMaterial* C3dglMesh::getMaterial()
@@ -306,5 +326,8 @@ C3dglMaterial* C3dglMesh::createNewMaterial()
 
 string C3dglMesh::getName()
 {
-	return std::format("{}/mesh #{}", m_pOwner->getName(), m_pOwner->getMeshIndex(this));
+	if (m_name.empty())
+		return std::format("{}/mesh #{}", m_pOwner->getName(), m_pOwner->getMeshIndex(this));
+	else
+		return std::format("{}/mesh #{} ({})", m_pOwner->getName(), m_pOwner->getMeshIndex(this), m_name);
 }
