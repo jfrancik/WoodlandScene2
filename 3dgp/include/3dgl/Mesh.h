@@ -57,22 +57,22 @@ namespace _3dgl
 
 		// Attribute Buffer Ids
 		GLuint m_id[ATTR_LAST];
-		GLuint mIndexId;	// index buffer id
+		GLuint m_idIndex;	// index buffer id
 
 		// statistics
 		size_t m_nVertices;			// number of vertices
 		size_t m_nUVComponents;		// number of UV coords - must be 2
-		size_t m_indexSize;			// number of elements to draw (size of index buffer)
+		size_t m_nIndices;			// number of elements to draw (size of index buffer)
 		size_t m_nBones;			// number of bones
 
 		// Material Index - points to the main m_materials collection
-		size_t m_nMaterialIndex;
+		size_t m_matIndex;
 		
 		// Bounding Volume (experimental feature)
 		glm::vec3 m_aabb[2];
 	
 	protected:
-		size_t getBuffers(GLuint attribId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
+		size_t getBuffers(GLint attrId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
 		size_t getIndexBuffer(void** indexData, size_t *indSize);
 		void cleanUp(void** attrData, void *indexData);		// call after getBuffers well data no longer required
 		void setupBoundingVolume();
@@ -81,7 +81,7 @@ namespace _3dgl
 		C3dglMesh(C3dglModel* pOwner);
 		
 		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
-		void create(const aiMesh *pMesh, GLuint attribId[ATTR_LAST]);
+		void create(const aiMesh *pMesh, GLint attrId[ATTR_LAST]);
 
 		// Create a mesh using ASSIMP data - to be used with the fixed pipeline only!
 		void create(const aiMesh* pMesh);
@@ -101,7 +101,7 @@ namespace _3dgl
 		// Statistics
 		size_t getVertexCount()			{ return m_nVertices; }
 		size_t getUVComponentCount()	{ return m_nUVComponents; }
-		size_t getIndexCount()			{ return m_indexSize; }
+		size_t getIndexCount()			{ return m_nIndices; }
 		size_t getBoneCount()			{ return m_nBones; }
 
 		// Material functions

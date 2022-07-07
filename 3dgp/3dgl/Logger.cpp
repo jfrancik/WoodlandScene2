@@ -12,7 +12,6 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 #include <GL/glut.h>
 
-using namespace std;
 using namespace _3dgl;
 
 CLogger::CLogger()
@@ -40,10 +39,28 @@ CLogger::CLogger()
 	operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED) = "implements bone ids but bone weights are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED) = "implements bone weights but bone ids are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_SKINNING_NOT_IMPLEMENTED) = "comes with animations but skinning is not implemented.";
-	operator[](M3DGL_WARNING_NON_TRIANGULAR_MESH) = "is loading non-triangular mesh: only triangular meshes are supported.";
+	operator[](M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE) = "is rendered by a different shader program than the one registered at load time but both appear to be compatible.";
+	operator[](M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED) = "is rendered by a different shader program than the one registered at load time. Check further warnings for details.";
+	operator[](M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a vertex buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_NORMAL_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a normal buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_TEXCOORD_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a texture coordinate buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_TANGENT_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a tangent buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_BITANGENT_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a bitangent buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_COLOR_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a color buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_BONE_ID_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a bone ID buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_BONE_WEIGHT_BUFFER_PREPARED_BUT_NOT_USED) = "has prepared a bone weight buffer at load time but it doesn't appear to be used at render time.";
+	operator[](M3DGL_WARNING_VERTEX_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a vertex buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_NORMAL_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a normal buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_TEXCOORD_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a texture coordinate buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_TANGENT_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a tangent buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_BITANGENT_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a bitangent buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_COLOR_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a color buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_BONE_ID_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a bone ID buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_BONE_WEIGHT_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a bone weight buffer but it appears to be used by the current shader program.";
+	operator[](M3DGL_WARNING_NON_TRIANGULAR_MESH) = "is loading non-triangular mesh. Only triangular meshes are supported.";
 	operator[](M3DGL_WARNING_NO_VERTICES) = "has no vertices.";
 	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is using {} UV coordinates. Only 2 UV coordinates are supported.";
-	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "maximum number of bones per vertex exceeded.";
+	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "has exceeded the maximum number of bones.";
 	operator[](M3DGL_WARNING_VERTEX_BUFFER_MISSING) = "is missing vertex buffer information.";
 	operator[](M3DGL_WARNING_NORMAL_BUFFER_MISSING) = "is missing normal buffer information.";
 	operator[](M3DGL_WARNING_TEXCOORD_BUFFER_MISSING) = "is missing texture coordinate buffer information.";
@@ -57,14 +74,16 @@ CLogger::CLogger()
 	operator[](M3DGL_WARNING_EMBED_FILE_UNKNOWN_FORMAT) = "encountered unknown file format {} in embedded file: {}.";
 
 	operator[](M3DGL_ERROR_GENERIC) = "{}";
-	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {} :\n\r    Sending value of {} but expected was {}.";
-	operator[](M3DGL_ERROR_AI) = "Internal ASSIMP error whilst loading a model: {}";
+	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {}: sending value of {} but {} was expected.";
+	operator[](M3DGL_ERROR_WRONG_STD_UNIFORM_ID) = "standard uniform index out of scope. Should be less then {}.";
+
+	operator[](M3DGL_ERROR_AI) = "internal ASSIMP error: {}";
 	operator[](M3DGL_ERROR_COMPILATION) = "compilation error: {}";
 	operator[](M3DGL_ERROR_LINKING) = "linking error: {}";
 	operator[](M3DGL_ERROR_WRONG_SHADER) = "creation error. Wrong type of shader.";
 	operator[](M3DGL_ERROR_NO_SOURCE_CODE) = "creation error. Source code not provided.";
 	operator[](M3DGL_ERROR_CREATION) = "creation error. Reason unknown.";
-	operator[](M3DGL_ERROR_UNKNOWN_COMPILATION_ERROR) = "unknown compilation error";
+	operator[](M3DGL_ERROR_UNKNOWN_COMPILATION_ERROR) = "unknown compilation error.";
 	operator[](M3DGL_ERROR_SHADER_NOT_CREATED) = "cannot attach shader: shader not created.";
 	operator[](M3DGL_ERROR_PROGRAM_NOT_CREATED) = "shader program not created.";
 	operator[](M3DGL_ERROR_UNKNOWN_LINKING_ERROR) = "unknown linking error";
@@ -90,7 +109,7 @@ bool CLogger::_log(unsigned nCode, std::string name, std::string message)
 	if (nCode >= M3DGL_ERROR_GENERIC)
 		nSeverity++;
 
-	string msg;
+	std::string msg;
 	switch (nSeverity)
 	{
 	case 0: msg = std::format("{} {}", name, message); break;
@@ -120,5 +139,5 @@ bool CLogger::_log(unsigned nCode, std::string name, std::string message)
 
 void CLogger::write(std::string msg)
 {
-	cout << msg << endl;
+	std::cout << msg << std::endl;
 }

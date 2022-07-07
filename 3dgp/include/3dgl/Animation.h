@@ -1,9 +1,7 @@
 /*********************************************************************************
 3DGL 3D Graphics Library created by Jarek Francik for Kingston University students
-Partially based on http://ogldev.atspace.co.uk/www/tutorial38/tutorial38.html
-Version 2.2 23/03/15
-
-Copyright (C) 2013-15 Jarek Francik, Kingston University, London, UK
+Version 3.0 - June 2022
+Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 Implementation of an Animation loader/solver class
 Uses AssImp (Open Asset Import Library) Library to interpret animation information

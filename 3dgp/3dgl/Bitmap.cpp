@@ -14,13 +14,19 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 // assimp include file
 #include "assimp/scene.h"
 
-using namespace std;
 using namespace _3dgl;
+
+C3dglBitmap::C3dglBitmap() 
+{ 
+	m_idImage = 0; 
+	m_width = m_height = 0; 
+	m_pBits = NULL; 
+}
 
 C3dglBitmap::C3dglBitmap(std::string fname, unsigned format)
 {
 	m_idImage = 0;
-	m_nWidth = m_nHeight = 0;
+	m_width = m_height = 0;
 	m_pBits = NULL;
 	load(fname, format);
 }
@@ -49,8 +55,8 @@ bool C3dglBitmap::load(std::string fname, unsigned format)
 		ilConvertImage(format, IL_UNSIGNED_BYTE); 
 		log(M3DGL_SUCCESS_LOADED, fname);
 
-		m_nWidth = ilGetInteger(IL_IMAGE_WIDTH);
-		m_nHeight = ilGetInteger(IL_IMAGE_HEIGHT);
+		m_width = ilGetInteger(IL_IMAGE_WIDTH);
+		m_height = ilGetInteger(IL_IMAGE_HEIGHT);
 		m_pBits = ilGetData();
 
 		return true;
@@ -64,14 +70,14 @@ bool C3dglBitmap::load(std::string fname, unsigned format)
 
 bool C3dglBitmap::load(const aiTexture* pTexture, unsigned format)
 {
-	string shortName = pTexture->mFilename.data;
+	std::string shortName = pTexture->mFilename.data;
 	size_t i = shortName.find_last_of("/\\");
-	if (i != string::npos) shortName = shortName.substr(i + 1);
+	if (i != std::string::npos) shortName = shortName.substr(i + 1);
 
 	if (pTexture->mWidth && pTexture->mHeight && pTexture->pcData)
 	{
-		m_nWidth = pTexture->mWidth;
-		m_nHeight = pTexture->mHeight;
+		m_width = pTexture->mWidth;
+		m_height = pTexture->mHeight;
 		m_pBits = pTexture->pcData;
 		return log(M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE, shortName);
 	}
@@ -108,8 +114,8 @@ bool C3dglBitmap::load(const aiTexture* pTexture, unsigned format)
 		{
 			ilConvertImage(format, IL_UNSIGNED_BYTE);
 
-			m_nWidth = ilGetInteger(IL_IMAGE_WIDTH);
-			m_nHeight = ilGetInteger(IL_IMAGE_HEIGHT);
+			m_width = ilGetInteger(IL_IMAGE_WIDTH);
+			m_height = ilGetInteger(IL_IMAGE_HEIGHT);
 			m_pBits = ilGetData();
 
 			return log(M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE, shortName);
@@ -132,6 +138,6 @@ void C3dglBitmap::destroy()
 	if (m_idImage)
 		ilDeleteImages(1, &m_idImage);
 	m_idImage = 0;
-	m_nWidth = m_nHeight = 0;
+	m_width = m_height = 0;
 	m_pBits = NULL;
 }

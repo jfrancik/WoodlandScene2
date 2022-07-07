@@ -40,9 +40,7 @@ freely, subject to the following restrictions:
 
 #include "Object.h"
 #include "CommonDef.h"
-#include <string>
 #include <map>
-#include <set>
 
 #include "../glm/mat4x4.hpp"
 
@@ -64,10 +62,10 @@ namespace _3dgl
 	public:
 		C3dglShader() : C3dglObject()		{ m_type = 0; m_id = 0; }
 
-		bool Create(GLenum type);
-		bool Load(std::string source);
-		bool LoadFromFile(std::string fname);
-		bool Compile();
+		bool create(GLenum type);
+		bool load(std::string source);
+		bool loadFromFile(std::string fname);
+		bool compile();
 
 		GLenum getType()		{ return m_type; }
 		GLuint getId()			{ return m_id; }
@@ -78,157 +76,175 @@ namespace _3dgl
 
 	class MY3DGL_API C3dglProgram : public C3dglObject
 	{
-	public:
-		// Standard attribute and uniform locations
-		// TO BE REPLACED BY COMMON DEFS ***************
-		//enum ATTRIB_STD { ATTR_VERTEX, ATTR_NORMAL, ATTR_TEXCOORD, ATTR_TANGENT, ATTR_BITANGENT, ATTR_COLOR, ATTR_BONE_ID, ATTR_BONE_WEIGHT, ATTR_LAST };
-		//enum UNI_STD { UNI_MODELVIEW, UNI_MAT_AMBIENT, UNI_MAT_DIFFUSE, UNI_MAT_SPECULAR, UNI_MAT_EMISSIVE, UNI_MAT_SHININESS, UNI_LAST };
-
-
 	private:
 		static C3dglProgram *c_pCurrentProgram;
 
 		struct MY3DGL_API UNIFORM
 		{
-			UNIFORM(GLuint _location = -1, GLenum _type = 0) : location(_location), type(_type) { }
-			GLuint location;
-			GLenum type;
+			GLint location;		// uniform location
+			GLenum datatype;	// index to an internal data structure (c_uniTypes)
 		};
 
-		GLuint m_id;
+		GLuint m_id;		// Program id
+
+		// Maps of Shader Objects
 #pragma warning(push)
 #pragma warning(disable: 4251)
-		std::map<std::string, GLuint> m_attribs;
-		std::map<std::string, UNIFORM> m_uniforms;
-		std::map<GLenum, unsigned> m_types;
+		std::map<std::string, GLint> m_attribs;			// map of attributes: name => attribute locaion 
+		std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
 #pragma warning(pop)
 
-		GLuint m_stdAttr[ATTR_LAST];
-		UNIFORM m_stdUni[UNI_LAST];
+		GLint m_stdAttr[ATTR_LAST];						// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
+		GLint m_stdUni[UNI_LAST];						// array of standard uniform locations (see enum UNI_STD in CommonDef.h)
 
 	public:
 		C3dglProgram();
 
-		bool Create();
-		bool Attach(C3dglShader &shader);
-		bool Link(std::string std_attrib_names = "", std::string std_uni_names = "");
-		bool Use(bool bValidate = false);
+		bool create();
+		bool attach(C3dglShader &shader);
+		bool link(std::string std_attrib_names = "", std::string std_uni_names = "");
+		bool use(bool bValidate = false);
 
-		GLuint GetId()			{ return m_id; }
-		bool IsUsed()			{ return c_pCurrentProgram == this; }
+		GLuint getId()			{ return m_id; }
+		bool isUsed()			{ return c_pCurrentProgram == this; }
 
-		static C3dglProgram *GetCurrentProgram()		{ return c_pCurrentProgram; }
+		static C3dglProgram *getCurrentProgram()		{ return c_pCurrentProgram; }
 
 		// numerical locations for attributes
-		void GetAttribLocation(std::string idUniform, GLuint &location);
-		GLuint GetAttribLocation(std::string idUniform)							{ GLuint location; GetAttribLocation(idUniform, location); return location; }
-		void GetAttribLocation(ATTRIB_STD attr, GLuint &location)				{ location = m_stdAttr[attr]; }
-		GLuint GetAttribLocation(ATTRIB_STD attr)								{ return m_stdAttr[attr]; }
+		GLint getAttribLocation(std::string idUniform);
+		GLint getAttribLocation(ATTRIB_STD attr)								{ return m_stdAttr[attr]; }
+
+		// shader "signature" - array of all standard attribute locations which defines the shader program functionality
+		GLint* getShaderSignature()												{ return m_stdAttr; }
 
 		// numerical locations and types for attribute and uniform names
-		void GetUniformLocation(std::string idUniform, GLuint &location, GLenum &type, GLenum &targetType);
-		GLuint GetUniformLocation(std::string idUniform)						{ GLuint location; GLenum type, targetType; GetUniformLocation(idUniform, location, type, targetType); return location; }
-		void GetUniformLocation(UNI_STD uniId, GLuint &location, GLenum &type, GLenum &targetType);
-		GLuint GetUniformLocation(UNI_STD uniId)								{ GLuint location; GLenum type, targetType; GetUniformLocation(uniId, location, type, targetType); return location; }
+		GLint getUniformLocation(std::string idUniform);
+		GLint getUniformLocation(UNI_STD uniId);
 
-		// send uniform using numerical location
-		void SendUniform(GLuint location, GLint v0)													{ if (!IsUsed()) Use(); glUniform1i(location, v0); }
-		void SendUniform(GLuint location, GLint v0, GLint v1)										{ if (!IsUsed()) Use(); glUniform2i(location, v0, v1); }
-		void SendUniform(GLuint location, GLint v0, GLint v1, GLint v2)								{ if (!IsUsed()) Use(); glUniform3i(location, v0, v1, v2); }
-		void SendUniform(GLuint location, GLint v0, GLint v1, GLint v2, GLint v3)					{ if (!IsUsed()) Use(); glUniform4i(location, v0, v1, v2, v3); }
-		void SendUniform(GLuint location, GLuint v0)												{ if (!IsUsed()) Use(); glUniform1ui(location, v0); }
-		void SendUniform(GLuint location, GLuint v0, GLuint v1)										{ if (!IsUsed()) Use(); glUniform2ui(location, v0, v1); }
-		void SendUniform(GLuint location, GLuint v0, GLuint v1, GLuint v2)							{ if (!IsUsed()) Use(); glUniform3ui(location, v0, v1, v2); }
-		void SendUniform(GLuint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3)				{ if (!IsUsed()) Use(); glUniform4ui(location, v0, v1, v2, v3); }
-		void SendUniform(GLuint location, GLfloat v0)												{ if (!IsUsed()) Use(); glUniform1f(location, v0); }
-		void SendUniform(GLuint location, GLfloat v0, GLfloat v1)									{ if (!IsUsed()) Use(); glUniform2f(location, v0, v1); }
-		void SendUniform(GLuint location, GLfloat v0, GLfloat v1, GLfloat v2)						{ if (!IsUsed()) Use(); glUniform3f(location, v0, v1, v2); }
-		void SendUniform(GLuint location, glm::vec3 v)												{ if (!IsUsed()) Use(); glUniform3f(location, v[0], v[1], v[2]); }
-		void SendUniform(GLuint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)			{ if (!IsUsed()) Use(); glUniform4f(location, v0, v1, v2, v3); }
-		void SendUniform(GLuint location, double v0)												{ if (!IsUsed()) Use(); glUniform1f(location, (float)v0); }
-		void SendUniform(GLuint location, double v0, double v1)										{ if (!IsUsed()) Use(); glUniform2f(location, (float)v0, (float)v1); }
-		void SendUniform(GLuint location, double v0, double v1, double v2)							{ if (!IsUsed()) Use(); glUniform3f(location, (float)v0, (float)v1, (float)v2); }
-		void SendUniform(GLuint location, double v0, double v1, double v2, double v3)				{ if (!IsUsed()) Use(); glUniform4f(location, (float)v0, (float)v1, (float)v2, (float)v3); }
-		void SendUniform(GLuint location, GLfloat pMatrix[16])										{ if (!IsUsed()) Use(); glUniformMatrix4fv(location, 1, GL_FALSE, pMatrix); }
-		void SendUniform(GLuint location, glm::mat4 matrix)											{ if (!IsUsed()) Use(); glUniformMatrix4fv(location, 1, GL_FALSE, &matrix[0][0]); }
+		void getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type);
 
-		void SendUniform1v(GLuint location, GLint *p, GLuint count = 1)								{ if (!IsUsed()) Use(); glUniform1iv(location, count, p); }
-		void SendUniform2v(GLuint location, GLint *p, GLuint count = 1)								{ if (!IsUsed()) Use(); glUniform2iv(location, count, p); }
-		void SendUniform3v(GLuint location, GLint *p, GLuint count = 1)								{ if (!IsUsed()) Use(); glUniform3iv(location, count, p); }
-		void SendUniform4v(GLuint location, GLint *p, GLuint count = 1)								{ if (!IsUsed()) Use(); glUniform4iv(location, count, p); }
-		void SendUniform1v(GLuint location, GLuint *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform1uiv(location, count, p); }
-		void SendUniform2v(GLuint location, GLuint *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform2uiv(location, count, p); }
-		void SendUniform3v(GLuint location, GLuint *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform3uiv(location, count, p); }
-		void SendUniform4v(GLuint location, GLuint *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform4uiv(location, count, p); }
-		void SendUniform1v(GLuint location, GLfloat *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform1fv(location, count, p); }
-		void SendUniform2v(GLuint location, GLfloat *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform2fv(location, count, p); }
-		void SendUniform3v(GLuint location, GLfloat *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform3fv(location, count, p); }
-		void SendUniform4v(GLuint location, GLfloat *p, GLuint count = 1)							{ if (!IsUsed()) Use(); glUniform4fv(location, count, p); }
-		void SendUniformMatrixv(GLuint location, GLfloat *pMatrix, GLuint count = 1)				{ if (!IsUsed()) Use(); glUniformMatrix4fv(location, count, GL_FALSE, pMatrix); }
+		// Send Uniform functions
 
-		// send uniform using a name. Internally uses a look-up list to speed up and provide additional control
-		bool SendUniform(std::string name, GLint v0);
-		bool SendUniform(std::string name, GLint v0, GLint v1);
-		bool SendUniform(std::string name, GLint v0, GLint v1, GLint v2);
-		bool SendUniform(std::string name, GLint v0, GLint v1, GLint v2, GLint v3);
-		bool SendUniform(std::string name, GLuint v0);
-		bool SendUniform(std::string name, GLuint v0, GLuint v1);
-		bool SendUniform(std::string name, GLuint v0, GLuint v1, GLuint v2);
-		bool SendUniform(std::string name, GLuint v0, GLuint v1, GLuint v2, GLuint v3);
-		bool SendUniform(std::string name, GLfloat v0);
-		bool SendUniform(std::string name, GLfloat v0, GLfloat v1);
-		bool SendUniform(std::string name, GLfloat v0, GLfloat v1, GLfloat v2);
-		bool SendUniform(std::string name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-		bool SendUniform(std::string name, double v0);
-		bool SendUniform(std::string name, double v0, double v1);
-		bool SendUniform(std::string name, double v0, double v1, double v2);
-		bool SendUniform(std::string name, double v0, double v1, double v2, double v3);
-		bool SendUniform(std::string name, GLfloat pMatrix[16]);
-		bool SendUniform(std::string name, glm::mat4 matrix);
+		// Sending uniforms using location names
+		// Usage: sendUniform("uniform-name", value);
+		// single values
+		bool sendUniform(std::string name, GLfloat);
+		bool sendUniform(std::string name, GLint);
+		bool sendUniform(std::string name, GLuint);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool sendUniform(std::string name, glm::vec2);
+		bool sendUniform(std::string name, glm::vec3);
+		bool sendUniform(std::string name, glm::vec4);
+		bool sendUniform(std::string name, glm::ivec2);
+		bool sendUniform(std::string name, glm::ivec3);
+		bool sendUniform(std::string name, glm::ivec4);
+		bool sendUniform(std::string name, glm::uvec2);
+		bool sendUniform(std::string name, glm::uvec3);
+		bool sendUniform(std::string name, glm::uvec4);
+		// glm matrix
+		bool sendUniform(std::string name, glm::mat2);
+		bool sendUniform(std::string name, glm::mat3);
+		bool sendUniform(std::string name, glm::mat4);
 
-		bool SendUniform1v(std::string name, GLint *p, GLuint count = 1);
-		bool SendUniform2v(std::string name, GLint *p, GLuint count = 1);
-		bool SendUniform3v(std::string name, GLint *p, GLuint count = 1);
-		bool SendUniform4v(std::string name, GLint *p, GLuint count = 1);
-		bool SendUniform1v(std::string name, GLuint *p, GLuint count = 1);
-		bool SendUniform2v(std::string name, GLuint *p, GLuint count = 1);
-		bool SendUniform3v(std::string name, GLuint *p, GLuint count = 1);
-		bool SendUniform4v(std::string name, GLuint *p, GLuint count = 1);
-		bool SendUniform1v(std::string name, GLfloat *p, GLuint count = 1);
-		bool SendUniform2v(std::string name, GLfloat *p, GLuint count = 1);
-		bool SendUniform3v(std::string name, GLfloat *p, GLuint count = 1);
-		bool SendUniform4v(std::string name, GLfloat *p, GLuint count = 1);
-		bool SendUniformMatrixv(std::string name, GLfloat *pMatrix, GLuint count = 1);
+		// Sending uniforms using location ids
+		// Usage: sendUniform(location-code, value);
+		// single values
+		void sendUniform(GLint location, GLfloat);
+		void sendUniform(GLint location, GLint);
+		void sendUniform(GLint location, GLuint);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		void sendUniform(GLint location, glm::vec2);
+		void sendUniform(GLint location, glm::vec3);
+		void sendUniform(GLint location, glm::vec4);
+		void sendUniform(GLint location, glm::ivec2);
+		void sendUniform(GLint location, glm::ivec3);
+		void sendUniform(GLint location, glm::ivec4);
+		void sendUniform(GLint location, glm::uvec2);
+		void sendUniform(GLint location, glm::uvec3);
+		void sendUniform(GLint location, glm::uvec4);
+		// glm matrix
+		void sendUniform(GLint location, glm::mat2);
+		void sendUniform(GLint location, glm::mat3);
+		void sendUniform(GLint location, glm::mat4);
 
-		// send uniform using an indexed name
-		bool SendIndUniform(std::string name, GLuint i, GLint v0)									{ return SendUniform(name + "[" + std::to_string(i) + "]", v0); }
-		bool SendIndUniform(std::string name, GLuint i, GLint v0, GLint v1)							{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1); }
-		bool SendIndUniform(std::string name, GLuint i, GLint v0, GLint v1, GLint v2)				{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2); }
-		bool SendIndUniform(std::string name, GLuint i, GLint v0, GLint v1, GLint v2, GLint v3)		{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2, v3); }
-		bool SendIndUniform(std::string name, GLuint i, GLuint v0)									{ return SendUniform(name + "[" + std::to_string(i) + "]", v0); }
-		bool SendIndUniform(std::string name, GLuint i, GLuint v0, GLuint v1)						{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1); }
-		bool SendIndUniform(std::string name, GLuint i, GLuint v0, GLuint v1, GLuint v2)			{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2); }
-		bool SendIndUniform(std::string name, GLuint i, GLuint v0, GLuint v1, GLuint v2, GLuint v3)	{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2, v3); }
-		bool SendIndUniform(std::string name, GLuint i, GLfloat v0)									{ return SendUniform(name + "[" + std::to_string(i) + "]", v0); }
-		bool SendIndUniform(std::string name, GLuint i, GLfloat v0, GLfloat v1)						{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1); }
-		bool SendIndUniform(std::string name, GLuint i, GLfloat v0, GLfloat v1, GLfloat v2)			{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2); }
-		bool SendIndUniform(std::string name, GLuint i, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)	{ return SendUniform(name + "[" + std::to_string(i) + "]", v0, v1, v2, v3); }
-		bool SendIndUniform(std::string name, GLuint i, double v0)									{ return SendUniform(name + "[" + std::to_string(i) + "]", (float)v0); }
-		bool SendIndUniform(std::string name, GLuint i, double v0, double v1)						{ return SendUniform(name + "[" + std::to_string(i) + "]", (float)v0, (float)v1); }
-		bool SendIndUniform(std::string name, GLuint i, double v0, double v1, double v2)			{ return SendUniform(name + "[" + std::to_string(i) + "]", (float)v0, (float)v1, (float)v2); }
-		bool SendIndUniform(std::string name, GLuint i, double v0, double v1, double v2, double v3)	{ return SendUniform(name + "[" + std::to_string(i) + "]", (float)v0, (float)v1, (float)v2, (float)v3); }
-		bool SendIndUniform(std::string name, GLuint i, GLfloat pMatrix[16])						{ return SendUniform(name + "[" + std::to_string(i) + "]", pMatrix); }
-		void SendUniform(std::string name, GLuint i, glm::mat4 matrix)								{ SendUniform(name + "[" + std::to_string(i) + "]", matrix); }
+		// Sending arrays using location names
+		// Usage: sendUniform("location-name", array address, array count);
+		// single values
+		bool sendUniform(std::string name, GLfloat*, size_t count);
+		bool sendUniform(std::string name, GLint*, size_t count);
+		bool sendUniform(std::string name, GLuint*, size_t count);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool sendUniform(std::string name, glm::vec2*, size_t count);
+		bool sendUniform(std::string name, glm::vec3*, size_t count);
+		bool sendUniform(std::string name, glm::vec4*, size_t count);
+		bool sendUniform(std::string name, glm::ivec2*, size_t count);
+		bool sendUniform(std::string name, glm::ivec3*, size_t count);
+		bool sendUniform(std::string name, glm::ivec4*, size_t count);
+		bool sendUniform(std::string name, glm::uvec2*, size_t count);
+		bool sendUniform(std::string name, glm::uvec3*, size_t count);
+		bool sendUniform(std::string name, glm::uvec4*, size_t count);
+		// glm matrix
+		bool sendUniform(std::string name, glm::mat2*, size_t count);
+		bool sendUniform(std::string name, glm::mat3*, size_t count);
+		bool sendUniform(std::string name, glm::mat4*, size_t count);
+
+		// Sending arrays using location ids
+		// Usage: sendUniform(location-code, array address, array count);
+		// single values
+		void sendUniform(GLint location, GLfloat*, size_t count);
+		void sendUniform(GLint location, GLint*, size_t count);
+		void sendUniform(GLint location, GLuint*, size_t count);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		void sendUniform(GLint location, glm::vec2*, size_t count);
+		void sendUniform(GLint location, glm::vec3*, size_t count);
+		void sendUniform(GLint location, glm::vec4*, size_t count);
+		void sendUniform(GLint location, glm::ivec2*, size_t count);
+		void sendUniform(GLint location, glm::ivec3*, size_t count);
+		void sendUniform(GLint location, glm::ivec4*, size_t count);
+		void sendUniform(GLint location, glm::uvec2*, size_t count);
+		void sendUniform(GLint location, glm::uvec3*, size_t count);
+		void sendUniform(GLint location, glm::uvec4*, size_t count);
+		// glm matrix
+		void sendUniform(GLint location, glm::mat2*, size_t count);
+		void sendUniform(GLint location, glm::mat3*, size_t count);
+		void sendUniform(GLint location, glm::mat4*, size_t count);
+
+		// Sending array items using location names and index
+		// Usage: sendUniform("location-name", index, value);
+		// single values
+		bool sendUniform(std::string name, size_t index, GLfloat);
+		bool sendUniform(std::string name, size_t index, GLint);
+		bool sendUniform(std::string name, size_t index, GLuint);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool sendUniform(std::string name, size_t index, glm::vec2);
+		bool sendUniform(std::string name, size_t index, glm::vec3);
+		bool sendUniform(std::string name, size_t index, glm::vec4);
+		bool sendUniform(std::string name, size_t index, glm::ivec2);
+		bool sendUniform(std::string name, size_t index, glm::ivec3);
+		bool sendUniform(std::string name, size_t index, glm::ivec4);
+		bool sendUniform(std::string name, size_t index, glm::uvec2);
+		bool sendUniform(std::string name, size_t index, glm::uvec3);
+		bool sendUniform(std::string name, size_t index, glm::uvec4);
+		// glm matrix
+		bool sendUniform(std::string name, size_t index, glm::mat2);
+		bool sendUniform(std::string name, size_t index, glm::mat3);
+		bool sendUniform(std::string name, size_t index, glm::mat4);
 
 		// send a standard uniform using one of the UNI_STD values
-		bool SendStandardUniform(enum UNI_STD loc, GLfloat v0);
-		bool SendStandardUniform(enum UNI_STD loc, GLfloat v0, GLfloat v1, GLfloat v2);
-		bool SendStandardUniform(enum UNI_STD loc, glm::vec3 v);
-		bool SendStandardUniform(enum UNI_STD loc, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-		bool SendStandardUniform(enum UNI_STD loc, GLfloat pMatrix[16]);
-		bool SendStandardUniform(enum UNI_STD loc, glm::mat4 matrix);
+		bool sendUniform(enum UNI_STD stdloc, GLfloat v);
+		bool sendUniform(enum UNI_STD stdloc, glm::vec2 v);
+		bool sendUniform(enum UNI_STD stdloc, glm::vec3 v);
+		bool sendUniform(enum UNI_STD stdloc, glm::vec4 v);
+		bool sendUniform(enum UNI_STD stdloc, glm::mat2 v);
+		bool sendUniform(enum UNI_STD stdloc, glm::mat3 v);
+		bool sendUniform(enum UNI_STD stdloc, glm::mat4 v);
 
 		std::string getName()	{ return "GLSL Program"; }
+	
+	private:
+		// private implementation helpers
+		template<class T> bool _sendUniform(std::string name, T*, size_t count, GLenum type);
+		template<class T> bool _sendUniform(enum UNI_STD stdloc, T v);
 	};
 
 }; // namespace _3dgl

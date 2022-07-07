@@ -20,15 +20,12 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include "../glm/mat4x4.hpp"
 #include "../glm/gtc/type_ptr.hpp"
 
-using namespace std;
 using namespace _3dgl;
 
-const GLuint NEG1 = (GLuint)-1;
-
-C3dglModel::C3dglModel() : C3dglObject(), m_attribId{ NEG1, NEG1, NEG1, NEG1,NEG1, NEG1,NEG1, NEG1 }, m_globInvT(1)
+C3dglModel::C3dglModel() : C3dglObject(), m_globInvT(1)
 { 
 	m_pScene = NULL; 
-	m_pProgram = 0;
+	m_pProgram = m_pLastProgramUsed = NULL;
 	m_bFBXImportPreservePivots = false;
 }
 
@@ -49,9 +46,9 @@ bool C3dglModel::load(const char* pFile, unsigned int flags)
 
 	m_name = pFile;
 	size_t i = m_name.find_last_of("/\\");
-	if (i != string::npos) m_name = m_name.substr(i + 1);
+	if (i != std::string::npos) m_name = m_name.substr(i + 1);
 	i = m_name.find_last_of(".");
-	if (i != string::npos) m_name = m_name.substr(0, i);
+	if (i != std::string::npos) m_name = m_name.substr(0, i);
 
 	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
 	aiPropertyStore* ps = ::aiCreatePropertyStore();
@@ -66,25 +63,27 @@ bool C3dglModel::load(const char* pFile, unsigned int flags)
 void C3dglModel::create(const aiScene* pScene)
 {
 	// Find the Current Program
-	m_pProgram = C3dglProgram::GetCurrentProgram();
+	m_pProgram = C3dglProgram::getCurrentProgram();
+	m_pLastProgramUsed = NULL;
 
-	// Store the shader program attribute values
+	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
+	GLint *attribId = NULL;
 	if (m_pProgram)
-		for (unsigned attrib = ATTR_VERTEX; attrib < ATTR_LAST; attrib++)
-			m_attribId[attrib] = m_pProgram->GetAttribLocation((ATTRIB_STD)attrib);
+	{
+		attribId = m_pProgram->getShaderSignature();
 
-	// Generate warnings
-	if (!m_pProgram)
+		// Generate warnings
+		if (attribId[ATTR_VERTEX] == -1)
+			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
+		if (attribId[ATTR_NORMAL] == -1)
+			log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
+		if (attribId[ATTR_BONE_ID] != -1 && attribId[ATTR_BONE_WEIGHT] == -1)
+			log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
+		if (attribId[ATTR_BONE_ID] == -1 && attribId[ATTR_BONE_WEIGHT] != -1)
+			log(M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED);
+	}
+	else
 		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
-	if (m_pProgram && m_attribId[ATTR_VERTEX] == (GLuint)-1)
-		log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
-	if (m_pProgram && m_attribId[ATTR_NORMAL] == (GLuint)-1)
-		log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
-	if (m_attribId[ATTR_BONE_ID] != (GLuint)-1 && m_attribId[ATTR_BONE_WEIGHT] == (GLuint)-1)
-		log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
-	if (m_attribId[ATTR_BONE_ID] == (GLuint)-1 && m_attribId[ATTR_BONE_WEIGHT] != (GLuint)-1)
-		log(M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED);
-
 
 	// create meshes
 	m_pScene = pScene;
@@ -92,7 +91,7 @@ void C3dglModel::create(const aiScene* pScene)
 	aiMesh** ppMesh = m_pScene->mMeshes;
 	for (C3dglMesh& mesh : m_meshes)
 		if (m_pProgram)
-			mesh.create(*ppMesh++, m_attribId);
+			mesh.create(*ppMesh++, attribId);
 		else
 			mesh.create(*ppMesh++);
 
@@ -154,11 +153,35 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
 	// check if a shading program is active
-	C3dglProgram* pProgram = C3dglProgram::GetCurrentProgram();
+	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
+
+	// perform compatibility checks
+	// the only point of this paragraph is to display warnings if the shader used to render and the shader used to load the model are different
+	if (pProgram != m_pLastProgramUsed)		// first conditional is used to bypass the check if the current program is the same as the last program used
+	{
+		m_pLastProgramUsed = pProgram;
+		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
+		{
+			
+			GLint* pLoadSignature = m_pProgram->getShaderSignature();
+			GLint* pRenderSignature = pProgram->getShaderSignature();
+			if (std::equal(pLoadSignature, pLoadSignature + ATTR_LAST, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
+				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
+			else
+			{
+				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
+				for (unsigned i = 0; i < ATTR_LAST; i++)
+					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
+						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
+					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)
+						log(M3DGL_WARNING_VERTEX_BUFFER_NOT_LOADED_BUT_REQUESTED + i);
+			}
+		}
+	}
 
 	// send model view matrix
 	if (pProgram)
-		pProgram->SendStandardUniform(UNI_MODELVIEW, m);
+		pProgram->sendUniform(UNI_MODELVIEW, m);
 	else
 	{
 		glMatrixMode(GL_MODELVIEW);
@@ -166,7 +189,7 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 		glMultMatrixf((GLfloat*)&m);
 	}
 
-	for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
+	for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
 		C3dglMesh* pMesh = &m_meshes[iMesh];
 		C3dglMaterial* pMaterial = pMesh->getMaterial();
@@ -176,7 +199,7 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 	}
 
 	// draw all children
-	for (aiNode* p : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+	for (aiNode* p : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 		renderNode(p, m);
 }
 
@@ -230,34 +253,34 @@ size_t C3dglModel::getOrAddBone(std::string boneName, glm::mat4 offsetMatrix)
 	else
 	{
 		size_t id = m_vecBones.size();
-		m_vecBones.push_back(pair<std::string, glm::mat4>(boneName, offsetMatrix));
+		m_vecBones.push_back(std::pair<std::string, glm::mat4>(boneName, offsetMatrix));
 		m_mapBones[boneName] = id;
 		return id;
 	}
 }
 
-void C3dglModel::getBB(glm::vec3 BB[2]) 
+void C3dglModel::getAABB(glm::vec3 BB[2]) 
 { 
 	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
 	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
 	if (m_pScene->mRootNode)
-		getBB(m_pScene->mRootNode, BB); 
+		getAABB(m_pScene->mRootNode, BB); 
 }
 
-void C3dglModel::getBB(unsigned iNode, glm::vec3 BB[2])
+void C3dglModel::getAABB(unsigned iNode, glm::vec3 BB[2])
 {
 	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
 	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
 
 	if (iNode <= getMainNodeCount())
-		getBB(m_pScene->mRootNode->mChildren[iNode], BB, glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation)));
+		getAABB(m_pScene->mRootNode->mChildren[iNode], BB, glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation)));
 }
 
-void C3dglModel::getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
+void C3dglModel::getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
 {
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
-	for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
+	for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
 		glm::vec3 bb[2];
 		m_meshes[iMesh].getAABB(bb);
@@ -266,30 +289,30 @@ void C3dglModel::getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
 		bb4[0] = m * glm::vec4(bb[0], 1);
 		bb4[1] = m * glm::vec4(bb[1], 1);
 
-		BB[0].x = min(BB[0].x, bb4[0].x);
-		BB[0].y = min(BB[0].y, bb4[0].y);
-		BB[0].z = min(BB[0].z, bb4[0].z);
-		BB[0].x = min(BB[0].x, bb4[1].x);
-		BB[0].y = min(BB[0].y, bb4[1].y);
-		BB[0].z = min(BB[0].z, bb4[1].z);
+		BB[0].x = std::min(BB[0].x, bb4[0].x);
+		BB[0].y = std::min(BB[0].y, bb4[0].y);
+		BB[0].z = std::min(BB[0].z, bb4[0].z);
+		BB[0].x = std::min(BB[0].x, bb4[1].x);
+		BB[0].y = std::min(BB[0].y, bb4[1].y);
+		BB[0].z = std::min(BB[0].z, bb4[1].z);
 
-		BB[1].x = max(BB[1].x, bb4[0].x);
-		BB[1].y = max(BB[1].y, bb4[0].y);
-		BB[1].z = max(BB[1].z, bb4[0].z);
-		BB[1].x = max(BB[1].x, bb4[1].x);
-		BB[1].y = max(BB[1].y, bb4[1].y);
-		BB[1].z = max(BB[1].z, bb4[1].z);
+		BB[1].x = std::max(BB[1].x, bb4[0].x);
+		BB[1].y = std::max(BB[1].y, bb4[0].y);
+		BB[1].z = std::max(BB[1].z, bb4[0].z);
+		BB[1].x = std::max(BB[1].x, bb4[1].x);
+		BB[1].y = std::max(BB[1].y, bb4[1].y);
+		BB[1].z = std::max(BB[1].z, bb4[1].z);
 	}
 
 	// check all children
-	for (aiNode* p : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		getBB(p, BB, m);
+	for (aiNode* p : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		getAABB(p, BB, m);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
 // Articulated Animation Functions
 
-void C3dglModel::getAnimData(unsigned iAnim, float time, vector<glm::mat4>& transforms)
+void C3dglModel::getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>& transforms)
 {
 	transforms.resize(getBoneCount());	// 16 floats per bone matrix
 	if (!hasAnimation(iAnim))
@@ -315,7 +338,7 @@ void C3dglModel::stats(unsigned level)
 	unsigned nNodes = 0;
 	auto countNodes = [&](auto&& countNodes, const aiNode* pNode) -> void {
 		nNodes++;
-		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		for (aiNode* pChildNode : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 			countNodes(countNodes, pChildNode);
 	};
 	countNodes(countNodes, m_pScene->mRootNode);
@@ -325,7 +348,7 @@ void C3dglModel::stats(unsigned level)
 		nNodes, getMeshCount(), getMaterialCount(), getBoneCount(), getAnimationCount(), hasAnimations() ? m_pScene->mAnimations[0]->mNumChannels : 0);
 	if (level == 0) return;
 
-	auto statNode = [&](auto&& statNode, string pred, aiNode* pNode) -> void
+	auto statNode = [&](auto&& statNode, std::string pred, aiNode* pNode) -> void
 	{
 		size_t idBone = getBoneId(pNode->mName.data);
 		if (hasBone(idBone))
@@ -333,9 +356,9 @@ void C3dglModel::stats(unsigned level)
 		else
 			CLogger::write("{}Node: {} (no bone identified)", pred, pNode->mName.data);
 
-		for (unsigned iMesh : vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
+		for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 			CLogger::write("{}Mesh #{} ({}) - {} vertices, {} faces, {} bones", pred + "-", iMesh , m_pScene->mMeshes[iMesh]->mName.data, m_pScene->mMeshes[iMesh]->mNumVertices, m_pScene->mMeshes[iMesh]->mNumFaces, m_pScene->mMeshes[iMesh]->mNumBones);
-		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		for (aiNode* pChildNode : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 			statNode(statNode, pred + " ", pChildNode);
 	};
 	statNode(statNode, "", m_pScene->mRootNode);
@@ -345,7 +368,7 @@ void C3dglModel::stats(unsigned level)
 		CLogger::write("Animation channels:");
 		for (unsigned idChannel = 0; idChannel < m_pScene->mAnimations[0]->mNumChannels; idChannel++)
 		{
-			string strNodeName = m_pScene->mAnimations[0]->mChannels[idChannel]->mNodeName.data;
+			std::string strNodeName = m_pScene->mAnimations[0]->mChannels[idChannel]->mNodeName.data;
 			size_t idBone = getBoneId(strNodeName);
 			if (hasBone(idBone))
 				CLogger::write(" {}. {} - BONE #{}", idChannel, strNodeName, idBone);

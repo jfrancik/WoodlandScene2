@@ -10,7 +10,6 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <3dgl/CommonDef.h>
 
 using namespace _3dgl;
-using namespace std;
 
 C3dglSkyBox::C3dglSkyBox()
 {
@@ -32,7 +31,7 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), abs(bm.GetHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 	}
 
 	float vertices[] = 
@@ -83,7 +82,7 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 void C3dglSkyBox::render(glm::mat4 matrix)
 {
 	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::GetCurrentProgram();
+	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
 	if (!pProgram) return;
 
 	// disable depth-buffer write cycles - so that the skybox cannot obscure anything
@@ -92,14 +91,14 @@ void C3dglSkyBox::render(glm::mat4 matrix)
 	glDepthMask(GL_FALSE);
 
 	// get shader configuration
-	GLuint attribVertex = pProgram->GetAttribLocation(ATTR_VERTEX);
-	GLuint attribNormal = pProgram->GetAttribLocation(ATTR_NORMAL);
-	GLuint attribTexCoord = pProgram->GetAttribLocation(ATTR_TEXCOORD);
-	GLuint locationMatrixModelView = pProgram->GetUniformLocation(UNI_MODELVIEW);
+	GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
+	GLint attribNormal = pProgram->getAttribLocation(ATTR_NORMAL);
+	GLint attribTexCoord = pProgram->getAttribLocation(ATTR_TEXCOORD);
+	GLuint locationMatrixModelView = pProgram->getUniformLocation(UNI_MODELVIEW);
 
 	// send model view matrix
 	matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
-	pProgram->SendStandardUniform(UNI_MODELVIEW, matrix);
+	pProgram->sendUniform(UNI_MODELVIEW, matrix);
 
 	glEnableVertexAttribArray(attribVertex);
 	glEnableVertexAttribArray(attribNormal);

@@ -12,7 +12,6 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <3dgl/Bitmap.h>
 #include <3dgl/CommonDef.h>
 
-using std::vector;
 using namespace _3dgl;
 
 C3dglTerrain::C3dglTerrain()
@@ -79,7 +78,7 @@ bool C3dglTerrain::loadHeightmap(const std::string filename, float scaleHeight)
 		for (int j = m_nSizeZ - 1; j >= 0; j--)
 		{
 			int index = (i + j * m_nSizeX) * 4;
-			unsigned char *pBytes = (unsigned char*)(bm.GetBits());
+			unsigned char *pBytes = (unsigned char*)(bm.getBits());
 			unsigned char val = pBytes[index];
 			float f = (float)val / 256.0f;
 			m_heights.push_back(f * m_fScaleHeight);
@@ -321,9 +320,9 @@ bool C3dglTerrain::storeAsOBJ(const std::string filename)
 
 	// recreate the buffers - this is not a good style of programming!
 	// Collect Vertices, Normals and Lines (the latter - for the visualisation of normal vectors)
-	vector<float> vertices;
-	vector<float> normals;
-	vector<float> texCoords;
+	std::vector<float> vertices;
+	std::vector<float> normals;
+	std::vector<float> texCoords;
 	int minx = -m_nSizeX / 2;
 	int minz = -m_nSizeZ / 2;
 	for (int x = minx; x < minx + m_nSizeX; x++)
@@ -350,7 +349,7 @@ bool C3dglTerrain::storeAsOBJ(const std::string filename)
 		}
 
 	//Generate the triangle indices
-	vector<unsigned int> indices;
+	std::vector<unsigned int> indices;
 	for (int z = 0; z < m_nSizeZ - 1; ++z)
 		for (int x = 0; x < m_nSizeX - 1; ++x)
 		{
@@ -403,23 +402,23 @@ bool C3dglTerrain::storeAsRAW(const std::string filename)
 void C3dglTerrain::render(glm::mat4 matrix)
 {
 	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::GetCurrentProgram();
+	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
 
 	if (pProgram)
 	{
-		pProgram->SendStandardUniform(UNI_MODELVIEW, matrix);
+		pProgram->sendUniform(UNI_MODELVIEW, matrix);
 
-		GLuint attribVertex = pProgram->GetAttribLocation(ATTR_VERTEX);
-		GLuint attribNormal = pProgram->GetAttribLocation(ATTR_NORMAL);
-		GLuint attribTangent = pProgram->GetAttribLocation(ATTR_TANGENT);
-		GLuint attribBiTangent = pProgram->GetAttribLocation(ATTR_BITANGENT);
-		GLuint attribTexCoord = pProgram->GetAttribLocation(ATTR_TEXCOORD);
+		GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
+		GLint attribNormal = pProgram->getAttribLocation(ATTR_NORMAL);
+		GLint attribTangent = pProgram->getAttribLocation(ATTR_TANGENT);
+		GLint attribBiTangent = pProgram->getAttribLocation(ATTR_BITANGENT);
+		GLint attribTexCoord = pProgram->getAttribLocation(ATTR_TEXCOORD);
 
 		// programmable pipeline
 		glEnableVertexAttribArray(attribVertex);
 		glEnableVertexAttribArray(attribNormal);
-		if (attribTangent != (GLuint)-1) glEnableVertexAttribArray(attribTangent);
-		if (attribBiTangent != (GLuint)-1) glEnableVertexAttribArray(attribBiTangent);
+		if (attribTangent != -1) glEnableVertexAttribArray(attribTangent);
+		if (attribBiTangent != -1) glEnableVertexAttribArray(attribBiTangent);
 		glEnableVertexAttribArray(attribTexCoord);
 
 		//Bind the vertex array and set the vertex pointer to point at it
@@ -431,14 +430,14 @@ void C3dglTerrain::render(glm::mat4 matrix)
 		glVertexAttribPointer(attribNormal, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 		// Bind the tangent array and set the tangent pointer to point at it
-		if (attribTangent != (GLuint)-1)
+		if (attribTangent != -1)
 		{
 			glBindBuffer(GL_ARRAY_BUFFER, m_tangentBuffer);
 			glVertexAttribPointer(attribTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		}
 
 		// Bind the bitangent array and set the bitangent pointer to point at it
-		if (attribBiTangent != (GLuint)-1)
+		if (attribBiTangent != -1)
 		{
 			glBindBuffer(GL_ARRAY_BUFFER, m_bitangentBuffer);
 			glVertexAttribPointer(attribBiTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -454,8 +453,8 @@ void C3dglTerrain::render(glm::mat4 matrix)
 
 		glDisableVertexAttribArray(attribVertex);
 		glDisableVertexAttribArray(attribNormal);
-		if (attribTangent != (GLuint)-1) glDisableVertexAttribArray(attribTangent);
-		if (attribBiTangent != (GLuint)-1) glDisableVertexAttribArray(attribBiTangent);
+		if (attribTangent != -1) glDisableVertexAttribArray(attribTangent);
+		if (attribBiTangent != -1) glDisableVertexAttribArray(attribBiTangent);
 		glDisableVertexAttribArray(attribTexCoord);
 	}
 	else
@@ -499,10 +498,10 @@ void C3dglTerrain::render()
 void C3dglTerrain::renderNormals()
 {
 	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::GetCurrentProgram();
+	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
 	if (pProgram)
 	{
-		GLuint attribVertex = pProgram->GetAttribLocation(ATTR_VERTEX);
+		GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
 
 		// programmable pipeline
 		glDisable(GL_LIGHTING);

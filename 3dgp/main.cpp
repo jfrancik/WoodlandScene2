@@ -32,7 +32,7 @@ GLuint idTexStone, idTexStoneNormal;
 GLuint idTexNone;
 
 // GLSL Objects (Shader Program)
-C3dglProgram Program;
+C3dglProgram program;
 
 // The View Matrix
 mat4 matrixView;
@@ -60,25 +60,25 @@ bool init()
 	C3dglShader VertexShader;
 	C3dglShader FragmentShader;
 
-	if (!VertexShader.Create(GL_VERTEX_SHADER)) return false;
-	if (!VertexShader.LoadFromFile("shaders/basic.vert")) return false;
-	if (!VertexShader.Compile()) return false;
+	if (!VertexShader.create(GL_VERTEX_SHADER)) return false;
+	if (!VertexShader.loadFromFile("shaders/basic.vert")) return false;
+	if (!VertexShader.compile()) return false;
 
-	if (!FragmentShader.Create(GL_FRAGMENT_SHADER)) return false;
-	if (!FragmentShader.LoadFromFile("shaders/basic.frag")) return false;
-	if (!FragmentShader.Compile()) return false;
+	if (!FragmentShader.create(GL_FRAGMENT_SHADER)) return false;
+	if (!FragmentShader.loadFromFile("shaders/basic.frag")) return false;
+	if (!FragmentShader.compile()) return false;
 
-	if (!Program.Create()) return false;
-	if (!Program.Attach(VertexShader)) return false;
-	if (!Program.Attach(FragmentShader)) return false;
-	if (!Program.Link()) return false;
-	if (!Program.Use(true)) return false;
+	if (!program.create()) return false;
+	if (!program.attach(VertexShader)) return false;
+	if (!program.attach(FragmentShader)) return false;
+	if (!program.link()) return false;
+	if (!program.use(true)) return false;
 
-	Program.SendUniform("level", level);
+	program.sendUniform("level", level);
 
 	// glut additional setup
-	glutSetVertexAttribCoord3(Program.GetAttribLocation("aVertex"));
-	glutSetVertexAttribNormal(Program.GetAttribLocation("aNormal"));
+	glutSetVertexAttribCoord3(program.getAttribLocation("aVertex"));
+	glutSetVertexAttribNormal(program.getAttribLocation("aNormal"));
 
 	// load your 3D models here!
 	if (!terrain.loadHeightmap("models\\heightmap.png", 50)) return false;
@@ -108,44 +108,44 @@ bool init()
 	}
 
 	// setup lights
-	Program.SendUniform("lightDir.direction", -1.0f, 1.0f, 1.0f);
-	Program.SendUniform("lightDir.diffuse", 1.0f, 1.0f, 1.0f);
+	program.sendUniform("lightDir.direction", vec3(- 1.0f, 1.0f, 1.0f));
+	program.sendUniform("lightDir.diffuse", vec3(1.0f, 1.0f, 1.0f));
 
 	// load additional textures
 	C3dglBitmap bm;
 	glActiveTexture(GL_TEXTURE0);
 
 	// Terrain texture
-	bm.Load("models/grass.jpg", GL_RGBA);
-	if (!bm.GetBits()) return false;
+	bm.load("models/grass.jpg", GL_RGBA);
+	if (!bm.getBits()) return false;
 	glGenTextures(1, &idTexTerrain);
 	glBindTexture(GL_TEXTURE_2D, idTexTerrain);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), bm.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 	// Wolf texture
-	bm.Load("models/wolf.jpg", GL_RGBA);
-	if (!bm.GetBits()) return false;
+	bm.load("models/wolf.jpg", GL_RGBA);
+	if (!bm.getBits()) return false;
 	glGenTextures(1, &idTexWolf);
 	glBindTexture(GL_TEXTURE_2D, idTexWolf);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), bm.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 	// Stone texture
-	bm.Load("models/stone.png", GL_RGBA);
-	if (!bm.GetBits()) return false;
+	bm.load("models/stone.png", GL_RGBA);
+	if (!bm.getBits()) return false;
 	glGenTextures(1, &idTexStone);
 	glBindTexture(GL_TEXTURE_2D, idTexStone);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), bm.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 	// Stone normal map
-	bm.Load("models/stoneNormal.png", GL_RGBA);
-	if (!bm.GetBits()) return false;
+	bm.load("models/stoneNormal.png", GL_RGBA);
+	if (!bm.getBits()) return false;
 	glGenTextures(1, &idTexStoneNormal);
 	glBindTexture(GL_TEXTURE_2D, idTexStoneNormal);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), bm.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 	// none (simple-white) texture
 	glGenTextures(1, &idTexNone);
@@ -154,8 +154,8 @@ bool init()
 	BYTE bytes[] = { 255, 255, 255 };
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &bytes);
 
-	Program.SendUniform("texture0", 0);
-	Program.SendUniform("textureNormal", 1);
+	program.sendUniform("texture0", 0);
+	program.sendUniform("textureNormal", 1);
 
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = lookAt(
@@ -185,16 +185,16 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	mat4 m;
 
 	// render skybox
-	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);	// white
-	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
+	program.sendUniform("materialDiffuse", vec3(0.0f, 0.0f, 0.0f));	// white
+	program.sendUniform("materialAmbient", vec3(1.0f, 1.0f, 1.0f));
 	glActiveTexture(GL_TEXTURE0);
 
 	m = matrixView;
 	if (level >= 4) skybox.render(m);
 
 	// setup materials for the terrain
-	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);	// white
-	Program.SendUniform("materialAmbient", 0.1f, 0.1f, 0.1f);
+	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 1.0f));	// white
+	program.sendUniform("materialAmbient", vec3(0.1f, 0.1f, 0.1f));
 	glBindTexture(GL_TEXTURE_2D, idTexTerrain);
 
 	// render the terrain
@@ -202,8 +202,8 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	terrain.render(m);
 
 	// setup materials for the wolf
-	Program.SendUniform("materialDiffuse", 1.0f, 1.0f, 1.0f);	// white background for textures
-	Program.SendUniform("materialAmbient", 0.1f, 0.1f, 0.1f);
+	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 1.0f));	// white background for textures
+	program.sendUniform("materialAmbient", vec3(0.1f, 0.1f, 0.1f));
 	glBindTexture(GL_TEXTURE_2D, idTexWolf);
 
 	// Position of the moving wolf
@@ -220,7 +220,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 		// calculate and send bone transforms
 		std::vector<mat4> transforms;
 		wolf.getAnimData(0, time * 1.45f, transforms);// choose animation cycle & speed of animation
-		Program.SendUniformMatrixv("bones", (float*)&transforms[0], (GLuint)(transforms.size()));// amount of vertexes 
+		program.sendUniform("bones", &transforms[0], transforms.size());// amount of vertexes 
 	}
 
 	// render the wolf
@@ -234,15 +234,15 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glBindTexture(GL_TEXTURE_2D, idTexStone);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexStoneNormal);
-	Program.SendUniform("bNormalMap", level >= 8);
+	program.sendUniform("bNormalMap", level >= 8);
 	m = matrixView;
 	m = translate(m, vec3(-3, terrain.getInterpolatedHeight(-3, -1), -1));
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
 	if (level >= 1) stone.render(m);
-	Program.SendUniform("bNormalMap", false);
+	program.sendUniform("bNormalMap", false);
 
 	// render the trees
-	Program.SendUniform("bNormalMap", level >= 8);
+	program.sendUniform("bNormalMap", level >= 8);
 	for (vec4 pos : trees)
 	{
 		m = translate(matrixView, vec3(pos));
@@ -262,7 +262,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
 	m = rotate(m, radians(70.f), vec3(0.f, 1.f, 0.f));
 	tree.render(m);
-	Program.SendUniform("bNormalMap", false);
+	program.sendUniform("bNormalMap", false);
 }
 
 void onRender()
@@ -290,7 +290,7 @@ void onRender()
 	matrixView = translate(matrixView, vec3(0, terrainY, 0));
 
 	// setup View Matrix
-	Program.SendUniform("matrixView", matrixView);
+	program.sendUniform("matrixView", matrixView);
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime);
@@ -310,7 +310,7 @@ void onReshape(int w, int h)
 {
 	float ratio = w * 1.0f / h;      // we hope that h is not zero
 	glViewport(0, 0, w, h);
-	Program.SendUniform("matrixProjection", perspective(radians(_fov), ratio, 0.02f, 1000.f));
+	program.sendUniform("matrixProjection", perspective(radians(_fov), ratio, 0.02f, 1000.f));
 }
 
 // Handle WASDQE keys
@@ -325,17 +325,17 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'e': _acc.y = accel; break;
 	case 'q': _acc.y = -accel; break;
 	
-	case '`': level = 0; Program.SendUniform("level", level); break;
-	case '1': level = 1; Program.SendUniform("level", level); break;
-	case '2': level = 2; Program.SendUniform("level", level); break;
-	case '3': level = 3; Program.SendUniform("level", level); break;
-	case '4': level = 4; Program.SendUniform("level", level); break;
-	case '5': level = 5; Program.SendUniform("level", level); break;
-	case '6': level = 6; Program.SendUniform("level", level); break;
-	case '7': level = 7; Program.SendUniform("level", level); break;
-	case '8': level = 8; Program.SendUniform("level", level); break;
-	case '9': level = 9; Program.SendUniform("level", level); break;
-	case '0': level = 10; Program.SendUniform("level", level); break;
+	case '`': level = 0; program.sendUniform("level", level); break;
+	case '1': level = 1; program.sendUniform("level", level); break;
+	case '2': level = 2; program.sendUniform("level", level); break;
+	case '3': level = 3; program.sendUniform("level", level); break;
+	case '4': level = 4; program.sendUniform("level", level); break;
+	case '5': level = 5; program.sendUniform("level", level); break;
+	case '6': level = 6; program.sendUniform("level", level); break;
+	case '7': level = 7; program.sendUniform("level", level); break;
+	case '8': level = 8; program.sendUniform("level", level); break;
+	case '9': level = 9; program.sendUniform("level", level); break;
+	case '0': level = 10; program.sendUniform("level", level); break;
 	}
 }
 

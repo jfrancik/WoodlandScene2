@@ -14,7 +14,6 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 // GLM include files
 #include "../glm/gtc/type_ptr.hpp"
 
-using namespace std;
 using namespace _3dgl;
 
 C3dglAnimation::C3dglAnimation(C3dglModel* pOwner) : m_pOwner(pOwner), m_pAnim(NULL)
@@ -44,10 +43,10 @@ void C3dglAnimation::create(const aiAnimation* pAnim, const aiNode* pRootNode)
 	// Channel Id is the seq no in the animation channel buffer and bone id is stored with the owner model and used directly by shaders
 
 	// first: map node names into node addresses (using a recursive lambda function)
-	map<string, const aiNode*> mymap;
+	std::map<std::string, const aiNode*> mymap;
 	auto __createMap = [&](auto&& __createMap, const aiNode* pNode, std::map<std::string, const aiNode*>& map) -> void {
 		map[pNode->mName.data] = pNode;
-		for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+		for (aiNode* pChildNode : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 			__createMap(__createMap, pChildNode, map);
 	};
 	__createMap(__createMap, pRootNode, mymap);
@@ -55,10 +54,10 @@ void C3dglAnimation::create(const aiAnimation* pAnim, const aiNode* pRootNode)
 	// create the lookUp structure for the nodes included in the animation channel
 	for (unsigned idChannel = 0; idChannel < pAnim->mNumChannels; idChannel++)
 	{
-		string strNodeName = pAnim->mChannels[idChannel]->mNodeName.data;
+		std::string strNodeName = pAnim->mChannels[idChannel]->mNodeName.data;
 		const aiNode* pNode = mymap[strNodeName];
 		size_t idBone = m_pOwner->getBoneId(strNodeName);
-		m_lookUp[pNode] = pair<size_t, size_t>(idChannel, idBone);
+		m_lookUp[pNode] = std::pair<size_t, size_t>(idChannel, idBone);
 	}
 
 	// Some bones have a boneId but are not described in animation channels...
@@ -67,7 +66,7 @@ void C3dglAnimation::create(const aiAnimation* pAnim, const aiNode* pRootNode)
 		const aiNode* pNode = mymap[m_pOwner->getBoneName(idBone)];
 		if (m_lookUp.find(pNode) != m_lookUp.end())
 			continue;	// if the node already in the look-up structure, no longer interesting
-		m_lookUp[pNode] = pair<size_t, size_t>(size_t(-1), idBone);
+		m_lookUp[pNode] = std::pair<size_t, size_t>(size_t(-1), idBone);
 	}
 
 	// If a node has no boneId and no ChannelIf - not interesting!
@@ -145,6 +144,6 @@ void C3dglAnimation::readNodeHierarchy(float time, const aiNode* pNode, std::vec
 		if (idBone < m_pOwner->getBoneCount())
 			transforms[idBone] = m_pOwner->getGlobalInvT() * transform * m_pOwner->getBone(idBone);
 	}
-	for (aiNode* pChildNode : vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
+	for (aiNode* pChildNode : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 		readNodeHierarchy(time, pChildNode, transforms, transform);
 }

@@ -41,25 +41,21 @@ class MY3DGL_API C3dglBitmap : public C3dglObject
 {
 	unsigned int m_idImage;
 
-	long m_nWidth;
-	long m_nHeight;
+	long m_width;
+	long m_height;
 	void* m_pBits;
 
 public:
-	C3dglBitmap()	{ m_idImage = 0; m_nWidth = m_nHeight = 0; m_pBits = NULL; }
-	~C3dglBitmap()	{ destroy(); }
+	C3dglBitmap();
 	C3dglBitmap(const std::string fname, unsigned format);
+	~C3dglBitmap()	{ destroy(); }
 
-	bool Load(const std::string fname, unsigned format)	{ return load(fname, format); }
 	bool load(const std::string fname, unsigned format);
 	bool load(const aiTexture* pTexture, unsigned format);
 	void destroy();
 
-	long GetWidth()					{ return getWidth(); }
-	long getWidth()					{ return m_idImage ? m_nWidth : 0;  }
-	long GetHeight()				{ return getHeight(); }
-	long getHeight()				{ return m_idImage ? m_nHeight : 0; }
-	void *GetBits()					{ return getBits(); }
+	long getWidth()					{ return m_idImage ? m_width : 0;  }
+	long getHeight()				{ return m_idImage ? m_height : 0; }
 	void *getBits()					{ return m_idImage ? m_pBits : NULL; }
 
 	std::string getName()	{ return "Texture"; }

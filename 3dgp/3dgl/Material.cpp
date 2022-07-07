@@ -13,7 +13,6 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 // assimp include file
 #include <assimp/scene.h>
 
-using namespace std;
 using namespace _3dgl;
 
 unsigned C3dglMaterial::c_idTexBlank = 0xFFFFFFFF;
@@ -82,15 +81,15 @@ void C3dglMaterial::render(C3dglProgram *pProgram)
 	}
 
 	glm::vec3 vec;
-	if (getAmbient(vec)) pProgram->SendStandardUniform(UNI_MAT_AMBIENT, vec);
-	if (getDiffuse(vec)) pProgram->SendStandardUniform(UNI_MAT_DIFFUSE, vec);
-	if (getSpecular(vec)) pProgram->SendStandardUniform(UNI_MAT_SPECULAR, vec);
-	if (getEmissive(vec)) pProgram->SendStandardUniform(UNI_MAT_EMISSIVE, vec);
+	if (getAmbient(vec)) pProgram->sendUniform(UNI_MAT_AMBIENT, vec);
+	if (getDiffuse(vec)) pProgram->sendUniform(UNI_MAT_DIFFUSE, vec);
+	if (getSpecular(vec)) pProgram->sendUniform(UNI_MAT_SPECULAR, vec);
+	if (getEmissive(vec)) pProgram->sendUniform(UNI_MAT_EMISSIVE, vec);
 	float v;
-	if (getShininess(v)) pProgram->SendStandardUniform(UNI_MAT_SHININESS, vec);
+	if (getShininess(v)) pProgram->sendUniform(UNI_MAT_SHININESS, vec);
 }
 
-void C3dglMaterial::loadTexture(GLenum texUnit, string strDefTexPath, string strPath)
+void C3dglMaterial::loadTexture(GLenum texUnit, std::string strDefTexPath, std::string strPath)
 {
 	// first of all, check for the embedded texture!
 	const aiTexture *pTexture = m_pOwner->GetScene()->GetEmbeddedTexture(strPath.c_str());
@@ -107,7 +106,7 @@ void C3dglMaterial::loadTexture(GLenum texUnit, string strDefTexPath, string str
 		else if (!strDefTexPath.empty())
 		{
 			size_t i = strPath.find_last_of("/\\");
-			if (i != string::npos) strPath = strPath.substr(i + 1);
+			if (i != std::string::npos) strPath = strPath.substr(i + 1);
 
 
 			if (strDefTexPath.back() == '/' || strDefTexPath.back() == '\\')
@@ -120,7 +119,7 @@ void C3dglMaterial::loadTexture(GLenum texUnit, string strDefTexPath, string str
 	}
 }
 
-void C3dglMaterial::loadTexture(GLenum texUnit, string strPath)
+void C3dglMaterial::loadTexture(GLenum texUnit, std::string strPath)
 {
 	// generate IL image id
 	C3dglBitmap bm;

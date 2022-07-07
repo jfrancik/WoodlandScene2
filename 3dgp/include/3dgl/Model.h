@@ -77,8 +77,8 @@ namespace _3dgl
 #pragma warning(pop)
 
 		// shader-related data
-		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL is fixed pipeline
-		GLuint m_attribId[ATTR_LAST];				// attrib values read from the shader program at the load time
+		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL if fixed pipeline or no model loaded
+		C3dglProgram* m_pLastProgramUsed;			// the last program used for rendering; NULL if never rendered since loading the model
 
 	public:
 		C3dglModel();
@@ -159,11 +159,11 @@ namespace _3dgl
 
 		// Bounding Box Functions
 		// BB for the entire model
-		void getBB(glm::vec3 BB[2]);
+		void getAABB(glm::vec3 BB[2]);
 		// BB for one of the main nodes - see getMainNodeCount function
-		void getBB(unsigned iNode, glm::vec3 BB[2]);
+		void getAABB(unsigned iNode, glm::vec3 BB[2]);
 		// BB for a single node (low-level, mostly for internal use)
-		void getBB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m = glm::mat4(1));
+		void getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m = glm::mat4(1));
 
 		void stats(unsigned level = 0);
 

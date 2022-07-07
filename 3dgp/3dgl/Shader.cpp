@@ -9,14 +9,13 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <fstream>
 #include <vector>
 
-using namespace std;
 using namespace _3dgl;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Uniform variable types
 
-struct {
+static struct {
 	GLenum glType;
 	GLenum targetType;
 	std::string name;
@@ -91,10 +90,21 @@ struct {
 	{ GL_UNSIGNED_INT_SAMPLER_2D_RECT, GL_INT, "GL_UNSIGNED_INT_SAMPLER_2D_RECT" },
 };
 
+static std::map<GLenum, size_t> c_mapTypes;				// map of uniform types: uniform name => data type
+
+static void _initMapTypes()
+{
+	if (c_mapTypes.size() > 0) return;
+	size_t i = 0;
+	for (auto type : c_uniTypes)
+		c_mapTypes[type.glType] = i++;
+
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // C3dglShader
 
-bool C3dglShader::Create(GLenum type)
+bool C3dglShader::create(GLenum type)
 {
 	m_type = type;
 	m_id = glCreateShader(m_type);
@@ -102,7 +112,7 @@ bool C3dglShader::Create(GLenum type)
 	return log(M3DGL_SUCCESS_CREATED);
 }
 
-bool C3dglShader::Load(std::string source)
+bool C3dglShader::load(std::string source)
 {
 	if (m_id == 0) return log(M3DGL_ERROR_WRONG_SHADER);
 	m_source = source;
@@ -112,15 +122,15 @@ bool C3dglShader::Load(std::string source)
 	return log(M3DGL_SUCCESS_SRC_CODE_LOADED);
 }
 
-bool C3dglShader::LoadFromFile(std::string fname)
+bool C3dglShader::loadFromFile(std::string fname)
 {
 	m_fname = fname;
-	ifstream file(m_fname.c_str());
-	string source(istreambuf_iterator<char>(file), (istreambuf_iterator<char>()));
-	return Load(source);
+	std::ifstream file(m_fname.c_str());
+	std::string source(std::istreambuf_iterator<char>(file), (std::istreambuf_iterator<char>()));
+	return load(source);
 }
 
-bool C3dglShader::Compile()
+bool C3dglShader::compile()
 {
 	if (m_id == 0) return log(M3DGL_ERROR_WRONG_SHADER);
 
@@ -136,9 +146,9 @@ bool C3dglShader::Compile()
 		GLint infoLen;
 		glGetShaderiv(m_id, GL_INFO_LOG_LENGTH, &infoLen);
 		if (infoLen < 1) return log(M3DGL_ERROR_UNKNOWN_COMPILATION_ERROR);
-		vector<char> info(infoLen);
+		std::vector<char> info(infoLen);
 		glGetShaderInfoLog(m_id, infoLen, &infoLen, &info[0]);
-		return log(M3DGL_ERROR_COMPILATION, string(info.begin(), info.end()));
+		return log(M3DGL_ERROR_COMPILATION, std::string(info.begin(), info.end()));
 	}
 	return log(M3DGL_SUCCESS_COMPILED);
 }
@@ -165,18 +175,20 @@ C3dglProgram *C3dglProgram::c_pCurrentProgram = NULL;
 C3dglProgram::C3dglProgram() : C3dglObject()
 {
 	m_id = 0;
-	memset(m_stdAttr, -1, sizeof(m_stdAttr));
-	memset(m_stdUni, -1, sizeof(m_stdUni));
+	std::fill(m_stdAttr, m_stdAttr + ATTR_LAST, -1);
+	std::fill(m_stdUni, m_stdUni + UNI_LAST, -1);
+	// init the static (global) map of uniform types
+	_initMapTypes();
 }
 
-bool C3dglProgram::Create()
+bool C3dglProgram::create()
 {
 	m_id = glCreateProgram();
 	if (m_id == 0) return log(M3DGL_ERROR_CREATION);
 	return log(M3DGL_SUCCESS_CREATED);
 }
 
-bool C3dglProgram::Attach(C3dglShader &shader)
+bool C3dglProgram::attach(C3dglShader &shader)
 {
 	if (m_id == 0) return log(M3DGL_ERROR_PROGRAM_NOT_CREATED);
 	if (shader.getId() == 0) return log(M3DGL_ERROR_SHADER_NOT_CREATED);;
@@ -185,7 +197,7 @@ bool C3dglProgram::Attach(C3dglShader &shader)
 	return log(M3DGL_SUCCESS_ATTACHED, shader.getName());
 }
 
-bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
+bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 {
 	if (m_id == 0) return log(M3DGL_ERROR_PROGRAM_NOT_CREATED);
 
@@ -201,53 +213,39 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 		GLint infoLen;
 		glGetProgramiv(m_id, GL_INFO_LOG_LENGTH, &infoLen);
 		if (infoLen < 1) return log(M3DGL_ERROR_UNKNOWN_LINKING_ERROR);
-		vector<char> info(infoLen);
+		std::vector<char> info(infoLen);
 		glGetProgramInfoLog(m_id, infoLen, &infoLen, &info[0]);
-		return log(M3DGL_ERROR_LINKING, string(info.begin(), info.end()));
+		return log(M3DGL_ERROR_LINKING, std::string(info.begin(), info.end()));
 	}
-
-	// create type mappings
-	unsigned i = 0;
-	for (auto type : c_uniTypes)
-		m_types[type.glType] = i++;
 
 	// register active variables
 	GLint nUniforms, maxLen;
-	glGetProgramiv(GetId(), GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxLen);
-	glGetProgramiv(GetId(), GL_ACTIVE_UNIFORMS, &nUniforms);
+	glGetProgramiv(getId(), GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxLen);
+	glGetProgramiv(getId(), GL_ACTIVE_UNIFORMS, &nUniforms);
 	GLchar *buf = new GLchar[maxLen];
 	for (int i = 0; i < nUniforms; ++i) 
 	{
 		GLsizei written;
 		GLint size, location;
 		GLenum type;
-		glGetActiveUniform(GetId(), i, maxLen, &written, &size, &type, buf);
-		location = glGetUniformLocation(GetId(), buf);
-		string name = buf;
-		m_uniforms[name] = UNIFORM(location, m_types[type]);
+		glGetActiveUniform(getId(), i, maxLen, &written, &size, &type, buf);
+		location = glGetUniformLocation(getId(), buf);
+		std::string name = buf;
+		m_uniforms[name] = { location, c_uniTypes[c_mapTypes[type]].targetType };
 
 		// special entry for arrays...
 		size_t nPos = name.find('[');
-		if (nPos != string::npos)
+		if (nPos != std::string::npos)
 		{
-			string nameArray = name.substr(0, nPos);
-			location = glGetUniformLocation(GetId(), nameArray.c_str());
-			m_uniforms[nameArray] = UNIFORM(location, m_types[type]);
+			std::string nameArray = name.substr(0, nPos);
+			location = glGetUniformLocation(getId(), nameArray.c_str());
+			m_uniforms[nameArray] = { location, c_uniTypes[c_mapTypes[type]].targetType };
 		}
 	}
 	delete[] buf;
 
-	//for (auto pair : m_uniforms)
-	//{
-	//	string name = pair.first;
-	//	UNIFORM u = pair.second;
-	//	GLuint location = u.location;
-	//	string type = c_uniTypes[u.type].name;
-	//	printf(" %-8d | %s %s\n", location, type.c_str(), name.c_str());
-	//}
-
 	// Collect Standard Attribute Locations
-	string STD_ATTRIB_NAMES[] = {
+	std::string STD_ATTRIB_NAMES[] = {
 		"a_vertex|a_Vertex|aVertex|avertex|vertex|Vertex",
 		"a_normal|a_Normal|aNormal|anormal|normal|Normal",
 		"a_texcoord|a_TexCoord|aTexCoord|atexcoord|texcoord|TexCoord",
@@ -261,11 +259,11 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 	};
 	size_t astart = 0, aend = 0;
 	std_attrib_names += ";";
-	for (GLuint i = 0; i < ATTR_LAST; i++)
+	for (size_t i = 0; i < ATTR_LAST; i++)
 	{
-		string str = "";
+		std::string str = "";
 		aend = std_attrib_names.find(";", astart);
-		if (aend != string::npos)
+		if (aend != std::string::npos)
 		{
 			str = std_attrib_names.substr(astart, aend - astart);
 			astart = aend + 1;
@@ -274,14 +272,14 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 		str += "|";
 
 		size_t nstart = 0, nend = 0;
-		while ((nend = str.find("|", nstart)) != string::npos)
+		while ((nend = str.find("|", nstart)) != std::string::npos)
 		{
-			string name = str.substr(nstart, nend - nstart);
+			std::string name = str.substr(nstart, nend - nstart);
 			nstart = nend + 1;
 			if (name.empty()) continue;
 			
 			m_stdAttr[i] = glGetAttribLocation(m_id, name.c_str());
-			if (m_stdAttr[i] != (GLuint)-1)
+			if (m_stdAttr[i] != -1)
 			{
 				log(M3DGL_SUCCESS_ATTRIB_FOUND, name, m_stdAttr[i]);
 				break;
@@ -290,7 +288,7 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 	}
 	
 	// Collect Standard Uniform Locations
-	string STD_UNI_NAMES[] = {
+	std::string STD_UNI_NAMES[] = {
 		"modelview_matrix|modelView_matrix|ModelView_matrix|Modelview_matrix|modelview_Matrix|modelView_Matrix|ModelView_Matrix|Modelview_Matrix|"
 		"matrix_modelview|matrix_modelView|matrix_ModelView|matrix_Modelview|Matrix_modelview|Matrix_modelView|Matrix_ModelView|Matrix_Modelview|" 
 		"modelviewmatrix|modelViewmatrix|ModelViewmatrix|Modelviewmatrix|modelviewMatrix|modelViewMatrix|ModelViewMatrix|ModelviewMatrix|" 
@@ -303,11 +301,11 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 	};
 	size_t lstart = 0, lend = 0;
 	std_uni_names += ";";
-	for (GLuint i = 0; i < UNI_LAST; i++)
+	for (size_t i = 0; i < UNI_LAST; i++)
 	{
-		string str = "";
+		std::string str = "";
 		lend = std_uni_names.find(";", lstart);
-		if (lend != string::npos)
+		if (lend != std::string::npos)
 		{
 			str = std_uni_names.substr(lstart, lend - lstart);
 			lstart = lend + 1;
@@ -316,9 +314,9 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 		str += "|";
 
 		size_t nstart = 0, nend = 0;
-		while ((nend = str.find("|", nstart)) != string::npos)
+		while ((nend = str.find("|", nstart)) != std::string::npos)
 		{
-			string name = str.substr(nstart, nend - nstart);
+			std::string name = str.substr(nstart, nend - nstart);
 			nstart = nend + 1;
 			if (name.empty()) continue;
 
@@ -326,8 +324,8 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 			std::map<std::string, UNIFORM>::iterator it = m_uniforms.find(name.c_str());
 			if (it != m_uniforms.end())
 			{
-				m_stdUni[i] = it->second;
-				log(M3DGL_SUCCESS_UNIFORM_FOUND, name, m_stdUni[i].location);
+				m_stdUni[i] = it->second.location;
+				log(M3DGL_SUCCESS_UNIFORM_FOUND, name, m_stdUni[i]);
 			}
 		}
 	}
@@ -335,9 +333,12 @@ bool C3dglProgram::Link(std::string std_attrib_names, std::string std_uni_names)
 	return log(M3DGL_SUCCESS_LINKED);
 }
 
-bool C3dglProgram::Use(bool bValidate)
+bool C3dglProgram::use(bool bValidate)
 {
 	if (m_id == 0) return log(M3DGL_ERROR_PROGRAM_NOT_CREATED);
+	
+	if (isUsed()) return true;	// nothing to do
+	
 	glUseProgram(m_id);
 
 	c_pCurrentProgram = this;
@@ -351,25 +352,43 @@ bool C3dglProgram::Use(bool bValidate)
 	glGetProgramiv(m_id, GL_INFO_LOG_LENGTH, &infoLen);
 	infoLen = 0;
 	if (infoLen < 1) return log(M3DGL_SUCCESS_VERIFICATION, "OK");
-	vector<char> info(infoLen);
+	std::vector<char> info(infoLen);
 	glGetProgramInfoLog(m_id, infoLen, &infoLen, &info[0]);
-	return log(M3DGL_SUCCESS_VERIFICATION, (info.size() <= 1 ? "OK" : string(info.begin(), info.end())));
+	return log(M3DGL_SUCCESS_VERIFICATION, (info.size() <= 1 ? "OK" : std::string(info.begin(), info.end())));
 }
 
-void C3dglProgram::GetAttribLocation(std::string idAttrib, GLuint &location)
+GLint C3dglProgram::getAttribLocation(std::string idAttrib)
 {
 	auto i = m_attribs.find(idAttrib);
 	if (i == m_attribs.end())
 	{
-		GLuint nAttrib = glGetAttribLocation(m_id, idAttrib.c_str());
+		GLint nAttrib = glGetAttribLocation(m_id, idAttrib.c_str());
 		m_attribs[idAttrib] = nAttrib;
-		location = nAttrib;
+		return nAttrib;
 	}
 	else
-		location = i->second;
+		return i->second;
 }
 
-void C3dglProgram::GetUniformLocation(std::string idUniform, GLuint &location, GLenum &type, GLenum &targetType)
+GLint C3dglProgram::getUniformLocation(std::string idUniform) 
+{ 
+	GLint location; 
+	GLenum type; 
+	getUniformLocationAndType(idUniform, location, type); 
+	return location; 
+}
+
+GLint C3dglProgram::getUniformLocation(UNI_STD uniId) 
+{ 
+	if (uniId < 0 || uniId >= UNI_LAST)
+	{
+		log(M3DGL_ERROR_WRONG_STD_UNIFORM_ID, (unsigned)UNI_LAST);
+		return -1;
+	}
+	return m_stdUni[uniId]; 
+}
+
+void C3dglProgram::getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type)
 {
 	auto i = m_uniforms.find(idUniform);
 	
@@ -379,15 +398,13 @@ void C3dglProgram::GetUniformLocation(std::string idUniform, GLuint &location, G
 		// Uniform found
 		UNIFORM uni = (i->second);
 		location = uni.location;
-		type = c_uniTypes[uni.type].glType;
-		targetType = c_uniTypes[uni.type].targetType;
-		//printf(" %-20s | %s\n", idUniform.c_str(), c_uniTypes[uni.type].name.c_str());
+		type = uni.datatype;
 		return;
 	}
 
 	// if not found, search for corresponding array name...
 	size_t nPos = idUniform.find('[');
-	if (nPos != string::npos)
+	if (nPos != std::string::npos)
 	{
 		// look for an array
 		i = m_uniforms.find(idUniform.substr(0, nPos));
@@ -397,354 +414,263 @@ void C3dglProgram::GetUniformLocation(std::string idUniform, GLuint &location, G
 			UNIFORM uni = (i->second);
 			uni.location = glGetUniformLocation(m_id, idUniform.c_str());
 			m_uniforms[idUniform] = uni;
-			type = c_uniTypes[uni.type].glType;
-			targetType = c_uniTypes[uni.type].targetType;
-			//printf(" %-20s | %s\n", idUniform.c_str(), c_uniTypes[uni.type].name.c_str());
+			type = uni.datatype;
 			return;
 		}
 	}
 
 	// if all else fails, process as unregistred variable
 	location = glGetUniformLocation(m_id, idUniform.c_str());
-	type = targetType = 0;
-	m_uniforms[idUniform] = UNIFORM(location, m_types[type]);
-	if (location == (GLuint)-1) log(M3DGL_WARNING_UNIFORM_NOT_FOUND, idUniform);
+	type = GLenum(0);
+	m_uniforms[idUniform] = UNIFORM(location, 0);
+	if (location == -1) log(M3DGL_WARNING_UNIFORM_NOT_FOUND, idUniform);
 	else log(M3DGL_WARNING_UNIFORM_NOT_REGISTERED, idUniform);
 }
 
-void C3dglProgram::GetUniformLocation(UNI_STD uniId, GLuint &location, GLenum &type, GLenum &targetType)
-{
-	location = -1;
-	type = targetType = GLenum(0);
-
-	if (uniId < 0 || uniId >= UNI_LAST)
-		return;
-
-	UNIFORM uni = m_stdUni[uniId];
-	location = uni.location;
-	
-	if (uni.type < 0 || uni.type >= sizeof(c_uniTypes) / sizeof(c_uniTypes[0]))
-		return;
-
-	auto T = c_uniTypes[uni.type];
-	type = T.glType;
-	targetType = T.targetType;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// SendUniform and its overloads
+// sendUniform functions:
 
-bool C3dglProgram::SendUniform(std::string name, GLint v0)
+// Sending uniforms using location ids
+
+void C3dglProgram::sendUniform(GLint location, GLfloat v0) { use(); glUniform1f(location, v0); }
+void C3dglProgram::sendUniform(GLint location, GLint v0) { use(); glUniform1i(location, v0); }
+void C3dglProgram::sendUniform(GLint location, GLuint v0) { use(); glUniform1ui(location, v0); }
+void C3dglProgram::sendUniform(GLint location, glm::vec2 v) { use(); glUniform2f(location, v.x, v.y); }
+void C3dglProgram::sendUniform(GLint location, glm::vec3 v) { use(); glUniform3f(location, v.x, v.y, v.z); }
+void C3dglProgram::sendUniform(GLint location, glm::vec4 v) { use(); glUniform4f(location, v.x, v.y, v.z, v.w); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec2 v) { use(); glUniform2i(location, v.x, v.y); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec3 v) { use(); glUniform3i(location, v.x, v.y, v.z); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec4 v) { use(); glUniform4i(location, v.x, v.y, v.z, v.w); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec2 v) { use(); glUniform2ui(location, v.x, v.y); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec3 v) { use(); glUniform3ui(location, v.x, v.y, v.z); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec4 v) { use(); glUniform4ui(location, v.x, v.y, v.z, v.w); }
+void C3dglProgram::sendUniform(GLint location, glm::mat2 matrix) { use(); glUniformMatrix2fv(location, 1, GL_FALSE, &matrix[0][0]); }
+void C3dglProgram::sendUniform(GLint location, glm::mat3 matrix) { use(); glUniformMatrix3fv(location, 1, GL_FALSE, &matrix[0][0]); }
+void C3dglProgram::sendUniform(GLint location, glm::mat4 matrix) { use(); glUniformMatrix4fv(location, 1, GL_FALSE, &matrix[0][0]); }
+
+// Sending uniforms using location strings
+
+bool C3dglProgram::sendUniform(std::string name, GLfloat v0)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT || t == 0) SendUniform(location, (GLint)v0);
-	else if (t == GL_UNSIGNED_INT) SendUniform(location, (GLuint)v0);
-	else if (t == GL_BOOL) SendUniform(location, v0 != 0);
-	else if (t == GL_FLOAT) SendUniform(location, (GLfloat)v0);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT || t == 0) sendUniform(location, v0);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLint v0, GLint v1)
+bool C3dglProgram::sendUniform(std::string name, GLint v0)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC2 || t == 0) SendUniform(location, (GLint)v0, (GLint)v1);
-	else if (t == GL_UNSIGNED_INT_VEC2) SendUniform(location, (GLuint)v0, (GLuint)v1);
-	else if (t == GL_BOOL_VEC2) SendUniform(location, v0 != 0, v1 != 0);
-	else if (t == GL_FLOAT_VEC2) SendUniform(location, (GLfloat)v0, (GLfloat)v1);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC2]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT || t == 0) sendUniform(location, v0);
+	else if (t == GL_UNSIGNED_INT) sendUniform(location, (GLuint)v0);
+	else if (t == GL_BOOL) sendUniform(location, v0);
+	else if (t == GL_FLOAT) sendUniform(location, (GLfloat)v0);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_INT]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLint v0, GLint v1, GLint v2)
+bool C3dglProgram::sendUniform(std::string name, GLuint v0)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC3 || t == 0) SendUniform(location, (GLint)v0, (GLint)v1, (GLint)v2);
-	else if (t == GL_UNSIGNED_INT_VEC3) SendUniform(location, (GLuint)v0, (GLuint)v1, (GLuint)v2);
-	else if (t == GL_BOOL_VEC3) SendUniform(location, v0 != 0, v1 != 0, v2 != 0);
-	else if (t == GL_FLOAT_VEC3) SendUniform(location, (GLfloat)v0, (GLfloat)v1, (GLfloat)v2);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC3]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT) sendUniform(location, (GLint)v0);
+	else if (t == GL_UNSIGNED_INT || t == 0) sendUniform(location, v0);
+	else if (t == GL_BOOL) sendUniform(location, v0);
+	else if (t == GL_FLOAT) sendUniform(location, (GLfloat)v0);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_UNSIGNED_INT]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLint v0, GLint v1, GLint v2, GLint v3)
+bool C3dglProgram::sendUniform(std::string name, glm::vec2 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC4 || t == 0) SendUniform(location, (GLint)v0, (GLint)v1, (GLint)v2, (GLint)v3);
-	else if (t == GL_UNSIGNED_INT_VEC4) SendUniform(location, (GLuint)v0, (GLuint)v1, (GLuint)v2, (GLuint)v3);
-	else if (t == GL_BOOL_VEC4) SendUniform(location, v0 != 0, v1 != 0, v2 != 0, v3 != 0);
-	else if (t == GL_FLOAT_VEC4) SendUniform(location, (GLfloat)v0, (GLfloat)v1, (GLfloat)v2, (GLfloat)v3);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC4]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_VEC2 || t == 0) sendUniform(location, v);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_VEC2]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLuint v0)
+bool C3dglProgram::sendUniform(std::string name, glm::vec3 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT) SendUniform(location, (GLint)v0);
-	else if (t == GL_UNSIGNED_INT || t == 0) SendUniform(location, (GLuint)v0);
-	else if (t == GL_BOOL) SendUniform(location, v0 != 0);
-	else if (t == GL_FLOAT) SendUniform(location, (GLfloat)v0);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_VEC3 || t == 0) sendUniform(location, v);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_VEC3]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLuint v0, GLuint v1)
+bool C3dglProgram::sendUniform(std::string name, glm::vec4 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC2) SendUniform(location, (GLint)v0, (GLint)v1);
-	else if (t == GL_UNSIGNED_INT_VEC2 || t == 0) SendUniform(location, (GLuint)v0, (GLuint)v1);
-	else if (t == GL_BOOL_VEC2) SendUniform(location, v0 != 0, v1 != 0);
-	else if (t == GL_FLOAT_VEC2) SendUniform(location, (GLfloat)v0, (GLfloat)v1);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC2]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_VEC4 || t == 0) sendUniform(location, v);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_VEC4]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLuint v0, GLuint v1, GLuint v2)
+bool C3dglProgram::sendUniform(std::string name, glm::ivec2 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC3) SendUniform(location, (GLint)v0, (GLint)v1, (GLint)v2);
-	else if (t == GL_UNSIGNED_INT_VEC3 || t == 0) SendUniform(location, (GLuint)v0, (GLuint)v1, (GLuint)v2);
-	else if (t == GL_BOOL_VEC3) SendUniform(location, v0 != 0, v1 != 0, v2 != 0);
-	else if (t == GL_FLOAT_VEC3) SendUniform(location, (GLfloat)v0, (GLfloat)v1, (GLfloat)v2);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC3]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC2 || t == 0) sendUniform(location, v);
+	else if (t == GL_UNSIGNED_INT_VEC2) sendUniform(location, glm::uvec2(v));
+	else if (t == GL_BOOL_VEC2) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC2) sendUniform(location, glm::vec2(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_INT_VEC2]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLuint v0, GLuint v1, GLuint v2, GLuint v3)
+bool C3dglProgram::sendUniform(std::string name, glm::ivec3 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC4) SendUniform(location, (GLint)v0, (GLint)v1, (GLint)v2, (GLint)v3);
-	else if (t == GL_UNSIGNED_INT_VEC4 || t == 0) SendUniform(location, (GLuint)v0, (GLuint)v1, (GLuint)v2, (GLuint)v3);
-	else if (t == GL_BOOL_VEC4) SendUniform(location, v0 != 0, v1 != 0, v2 != 0, v3 != 0);
-	else if (t == GL_FLOAT_VEC4) SendUniform(location, (GLfloat)v0, (GLfloat)v1, (GLfloat)v2, (GLfloat)v3);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC4]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC3 || t == 0) sendUniform(location, v);
+	else if (t == GL_UNSIGNED_INT_VEC3) sendUniform(location, glm::uvec3(v));
+	else if (t == GL_BOOL_VEC3) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC3) sendUniform(location, glm::vec3(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_INT_VEC3]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLfloat v0)
+bool C3dglProgram::sendUniform(std::string name, glm::ivec4 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT || t == 0) SendUniform(location, v0);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC4 || t == 0) sendUniform(location, v);
+	else if (t == GL_UNSIGNED_INT_VEC4) sendUniform(location, glm::uvec4(v));
+	else if (t == GL_BOOL_VEC4) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC4) sendUniform(location, glm::vec4(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_INT_VEC4]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLfloat v0, GLfloat v1)
+bool C3dglProgram::sendUniform(std::string name, glm::uvec2 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC2 || t == 0) SendUniform(location, v0, v1);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC2]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC2) sendUniform(location, glm::ivec2(v));
+	else if (t == GL_UNSIGNED_INT_VEC2 || t == 0) sendUniform(location, v);
+	else if (t == GL_BOOL_VEC2) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC2) sendUniform(location, glm::vec2(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_UNSIGNED_INT_VEC2]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLfloat v0, GLfloat v1, GLfloat v2)
+bool C3dglProgram::sendUniform(std::string name, glm::uvec3 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC3 || t == 0) SendUniform(location, v0, v1, v2);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC3]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC3) sendUniform(location, glm::ivec3(v));
+	else if (t == GL_UNSIGNED_INT_VEC3 || t == 0) sendUniform(location, v);
+	else if (t == GL_BOOL_VEC3) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC3) sendUniform(location, glm::vec3(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_UNSIGNED_INT_VEC3]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
+bool C3dglProgram::sendUniform(std::string name, glm::uvec4 v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC4 || t == 0) SendUniform(location, v0, v1, v2, v3);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC4]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_INT_VEC4) sendUniform(location, glm::ivec4(v));
+	else if (t == GL_UNSIGNED_INT_VEC4 || t == 0) sendUniform(location, v);
+	else if (t == GL_BOOL_VEC4) sendUniform(location, v);
+	else if (t == GL_FLOAT_VEC4) sendUniform(location, glm::vec4(v));
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_UNSIGNED_INT_VEC4]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, double v0)
+bool C3dglProgram::sendUniform(std::string name, glm::mat2 matrix)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT || t == 0) SendUniform(location, v0);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_MAT2 || t == 0) sendUniform(location, matrix);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_MAT2]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, double v0, double v1)
+bool C3dglProgram::sendUniform(std::string name, glm::mat3 matrix)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC2 || t == 0) SendUniform(location, v0, v1);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC2]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_MAT3 || t == 0) sendUniform(location, matrix);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_MAT3]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, double v0, double v1, double v2)
-{ 
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);  
-	if (t == GL_FLOAT_VEC3 || t == 0) SendUniform(location, v0, v1, v2);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC3]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform(std::string name, double v0, double v1, double v2, double v3)
+bool C3dglProgram::sendUniform(std::string name, glm::mat4 matrix)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC4 || t == 0) SendUniform(location, v0, v1, v2, v3);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC4]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == GL_FLOAT_MAT4 || t == 0) sendUniform(location, matrix);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[GL_FLOAT_MAT4]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, GLfloat pMatrix[16])
+// Sending arrays using location ids
+
+void C3dglProgram::sendUniform(GLint location, GLfloat *p, size_t count) { use(); glUniform1fv(location, (GLuint)count, p); }
+void C3dglProgram::sendUniform(GLint location, GLint* p, size_t count) { use(); glUniform1iv(location, (GLuint)count, p); }
+void C3dglProgram::sendUniform(GLint location, GLuint* p, size_t count) { use(); glUniform1uiv(location, (GLuint)count, p); }
+void C3dglProgram::sendUniform(GLint location, glm::vec2* p, size_t count) { use(); glUniform2fv(location, (GLuint)count, (GLfloat*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::vec3* p, size_t count) { use(); glUniform3fv(location, (GLuint)count, (GLfloat*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::vec4* p, size_t count) { use(); glUniform4fv(location, (GLuint)count, (GLfloat*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec2* p, size_t count) { use(); glUniform2iv(location, (GLuint)count, (GLint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec3* p, size_t count) { use(); glUniform3iv(location, (GLuint)count, (GLint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::ivec4* p, size_t count) { use(); glUniform4iv(location, (GLuint)count, (GLint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec2* p, size_t count) { use(); glUniform2uiv(location, (GLuint)count, (GLuint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec3* p, size_t count) { use(); glUniform3uiv(location, (GLuint)count, (GLuint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::uvec4* p, size_t count) { use(); glUniform4uiv(location, (GLuint)count, (GLuint*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::mat2* p, size_t count) { use(); glUniformMatrix2fv(location, (GLuint)count, GL_FALSE, (GLfloat*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::mat3* p, size_t count) { use(); glUniformMatrix3fv(location, (GLuint)count, GL_FALSE, (GLfloat*)p); }
+void C3dglProgram::sendUniform(GLint location, glm::mat4* p, size_t count) { use(); glUniformMatrix4fv(location, (GLuint)count, GL_FALSE, (GLfloat*)p); }
+
+// Sending arrays using location strings
+
+template<class T> bool C3dglProgram::_sendUniform(std::string name, T* p, size_t count, GLenum type)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_MAT4 || t == 0) SendUniform(location, pMatrix);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_MAT4]].name, c_uniTypes[m_types[t]].name);
+	GLint location; GLenum t; getUniformLocationAndType(name, location, t);
+	if (t == type || t == 0) sendUniform(location, p, count);
+	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[c_mapTypes[type]].name, c_uniTypes[c_mapTypes[t]].name);
 	return true;
 }
 
-bool C3dglProgram::SendUniform(std::string name, glm::mat4 matrix)
+bool C3dglProgram::sendUniform(std::string name, GLfloat* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT); }
+bool C3dglProgram::sendUniform(std::string name, GLint* p, size_t count) { return _sendUniform(name, p, count, GL_INT); }
+bool C3dglProgram::sendUniform(std::string name, GLuint* p, size_t count) { return _sendUniform(name, p, count, GL_UNSIGNED_INT); }
+bool C3dglProgram::sendUniform(std::string name, glm::vec2* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_VEC2); }
+bool C3dglProgram::sendUniform(std::string name, glm::vec3* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_VEC3); }
+bool C3dglProgram::sendUniform(std::string name, glm::vec4* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_VEC4); }
+bool C3dglProgram::sendUniform(std::string name, glm::ivec2* p, size_t count) { return _sendUniform(name, p, count, GL_INT_VEC2); }
+bool C3dglProgram::sendUniform(std::string name, glm::ivec3* p, size_t count) { return _sendUniform(name, p, count, GL_INT_VEC3); }
+bool C3dglProgram::sendUniform(std::string name, glm::ivec4* p, size_t count) { return _sendUniform(name, p, count, GL_INT_VEC4); }
+bool C3dglProgram::sendUniform(std::string name, glm::uvec2* p, size_t count) { return _sendUniform(name, p, count, GL_UNSIGNED_INT_VEC2); }
+bool C3dglProgram::sendUniform(std::string name, glm::uvec3* p, size_t count) { return _sendUniform(name, p, count, GL_UNSIGNED_INT_VEC3); }
+bool C3dglProgram::sendUniform(std::string name, glm::uvec4* p, size_t count) { return _sendUniform(name, p, count, GL_UNSIGNED_INT_VEC4); }
+bool C3dglProgram::sendUniform(std::string name, glm::mat2* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_MAT2); }
+bool C3dglProgram::sendUniform(std::string name, glm::mat3* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_MAT3); }
+bool C3dglProgram::sendUniform(std::string name, glm::mat4* p, size_t count) { return _sendUniform(name, p, count, GL_FLOAT_MAT4); }
+
+// Sending array items using location names and index
+
+bool C3dglProgram::sendUniform(std::string name, size_t index, GLfloat v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, GLint v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, GLuint v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::vec2 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::vec3 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::vec4 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::ivec2 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::ivec3 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::ivec4 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::uvec2 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::uvec3 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::uvec4 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::mat2 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::mat3 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+bool C3dglProgram::sendUniform(std::string name, size_t index, glm::mat4 v) { return sendUniform(name + "[" + std::to_string(index) + "]", v); }
+
+// send a standard uniform using one of the UNI_STD values
+
+template<class T> bool C3dglProgram::_sendUniform(enum UNI_STD stdloc, T v)
 {
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_MAT4 || t == 0) SendUniform(location, matrix);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_MAT4]].name, c_uniTypes[m_types[t]].name);
+	GLint i = getUniformLocation(stdloc); 
+	if (i == -1) 
+		return false; 
+	sendUniform(i, v); 
 	return true;
 }
 
-bool C3dglProgram::SendUniform1v(std::string name, GLint *p, GLuint count) 
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT || t == 0) SendUniform1v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform2v(std::string name, GLint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC2 || t == 0) SendUniform2v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC2]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform3v(std::string name, GLint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC3 || t == 0) SendUniform3v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC3]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform4v(std::string name, GLint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_INT_VEC4 || t == 0) SendUniform4v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_INT_VEC4]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform1v(std::string name, GLuint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_UNSIGNED_INT || t == 0) SendUniform1v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform2v(std::string name, GLuint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_UNSIGNED_INT_VEC2 || t == 0) SendUniform2v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC2]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform3v(std::string name, GLuint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_UNSIGNED_INT_VEC3 || t == 0) SendUniform3v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC3]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform4v(std::string name, GLuint *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_UNSIGNED_INT_VEC4 || t == 0) SendUniform4v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_UNSIGNED_INT_VEC4]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform1v(std::string name, GLfloat *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT || t == 0) SendUniform1v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform2v(std::string name, GLfloat *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC2 || t == 0) SendUniform2v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC2]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform3v(std::string name, GLfloat *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC3 || t == 0) SendUniform3v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC3]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniform4v(std::string name, GLfloat *p, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_VEC4 || t == 0) SendUniform4v(location, p, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_VEC4]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendUniformMatrixv(std::string name, GLfloat *pMatrix, GLuint count)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(name, location, _t, t);
-	if (t == GL_FLOAT_MAT4 || t == 0) SendUniformMatrixv(location, pMatrix, count);
-	else return log(M3DGL_ERROR_TYPE_MISMATCH, name, c_uniTypes[m_types[GL_FLOAT_MAT4]].name, c_uniTypes[m_types[t]].name);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, GLfloat v0)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, v0);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, GLfloat v0, GLfloat v1, GLfloat v2)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, v0, v1, v2);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, glm::vec3 v)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, v);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, v0, v1, v2, v3);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, GLfloat pMatrix[16])
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, pMatrix);
-	return true;
-}
-
-bool C3dglProgram::SendStandardUniform(enum UNI_STD loc, glm::mat4 matrix)
-{
-	GLuint location; GLenum _t, t; GetUniformLocation(loc, location, _t, t);
-	SendUniform(location, matrix);
-	return true;
-}
-
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, GLfloat v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::vec2 v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::vec3 v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::vec4 v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::mat2 v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::mat3 v) { return _sendUniform(stdloc, v); }
+bool C3dglProgram::sendUniform(enum UNI_STD stdloc, glm::mat4 v) { return _sendUniform(stdloc, v); }
