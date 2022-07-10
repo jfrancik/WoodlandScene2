@@ -51,7 +51,6 @@ namespace _3dgl
 		M3DGL_SUCCESS_VERIFICATION,
 		M3DGL_SUCCESS_LOADED,
 		M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE,
-		M3DGL_SUCCESS_BONES_FOUND,
 
 		// Warnings
 		M3DGL_WARNING_GENERIC = 200,
@@ -113,27 +112,40 @@ namespace _3dgl
 		M3DGL_ERROR_UNKNOWN_LINKING_ERROR,
 	};
 
-	class MY3DGL_API CLogger
+	class MY3DGL_API C3dglLogger
 	{
 	protected:
-		CLogger();
+		C3dglLogger();
 		static bool _log(unsigned nCode, std::string name, std::string message);
-	public:
-		static CLogger& getInstance();
+
+		static C3dglLogger& getInstance();
 		std::string& operator[](const unsigned i);
 
+		static unsigned c_options;
+	public:
+		// Logging options. Default is: LOGGER_COLLAPSE_MESSAGES. Use any combination with an '|' operator
+		enum { LOGGER_COLLAPSE_MESSAGES = 1, LOGGER_USE_MESH_NAMES = 2, LOGGER_SHOW_ASSIMP_MESSAGES = 4, LOGGER_SHOW_ASSIMP_DEBUG_MESSAGES = 8, LOGGER_SHOW_ASSIMP_VERBOSE_MESSAGES = 12 };
+		static void setOptions(unsigned options) { c_options = options;  }
+		static unsigned getOptions() { return c_options;  }
+
+		// General purpose log function.
+		// Example of use: C3dglLogger::log("Vendor: {}", (const char *)glGetString(GL_VENDOR));
+		template<typename ... Args>
+		static inline void log(std::string format, Args... args)
+		{
+			return log(std::vformat(format, std::make_format_args(args ...)));
+		}
+
+		// same as above
+		static void log(std::string);
+
+		// Standard message log function.
+		// Expects the message code (see top of this file for available codes) and the initiator object name.
 		template<typename ... Args>
 		static inline bool log(unsigned nCode, std::string name, Args... args)
 		{
 			return _log(nCode, name, std::vformat(getInstance()[nCode], std::make_format_args(args ...)));
 		}
-
-		template<typename ... Args>
-		static inline void write(std::string format, Args... args)
-		{
-			return write(std::vformat(format, std::make_format_args(args ...)));
-		}
-		static void write(std::string);
 	};
 }
 

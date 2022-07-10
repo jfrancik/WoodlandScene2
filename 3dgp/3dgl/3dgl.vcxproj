@@ -173,6 +173,7 @@
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="SkyBox.cpp" />
     <ClCompile Include="Terrain.cpp" />
+    <ClCompile Include="TerrainConv.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\3dgl\3dgl.h" />

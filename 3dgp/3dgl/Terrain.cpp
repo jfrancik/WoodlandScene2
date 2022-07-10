@@ -5,20 +5,137 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 #include <GL/glew.h>
-#include <3dgl/Shader.h>
-#include <3dgl/Terrain.h>
-#include <3dgl/Bitmap.h>
 #include <3dgl/CommonDef.h>
+#include <3dgl/Bitmap.h>
+#include <3dgl/Terrain.h>
+#include <3dgl/Shader.h>
 
 using namespace _3dgl;
 
-C3dglTerrain::C3dglTerrain()
+C3dglTerrain::C3dglTerrain() : m_id{ 0, 0, 0, 0, 0 }, m_idIndex(0), m_idVAO(0)
 {
-    m_nSizeX = m_nSizeZ = m_vertexBuffer = m_normalBuffer = m_tangentBuffer = m_bitangentBuffer = m_texCoordBuffer = m_indexBuffer = 0;
+	// height map
+	m_heights = NULL;
+    m_nSizeX = m_nSizeZ = 0;
 	m_fScaleHeight = 1;
+	m_pProgram = m_pLastProgramUsed = NULL;
 }
+
+void C3dglTerrain::createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes)
+{
+	m_nSizeX = nSizeX;
+	m_nSizeZ = nSizeZ;
+	m_fScaleHeight = fScaleHeight;
+
+	// Collect Height Values
+	m_heights = new float[m_nSizeX * m_nSizeZ];
+	for (int i = 0; i < m_nSizeX; i++)
+		for (int j = 0; j < m_nSizeZ; j++)
+		{
+			int index = (i + (m_nSizeZ - j - 1) * m_nSizeX) * 4;
+			unsigned char val = static_cast<unsigned char*>(pBytes)[index];
+			float f = (float)val / 256.0f;
+			m_heights[i * m_nSizeX + j] = f * m_fScaleHeight;
+		}
+}
+
+size_t C3dglTerrain::getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATTR_COLOR])
+{
+	size_t nVertices = m_nSizeX * m_nSizeZ;
+	GLint mul[] = { 3, 3, 2, 3, 3 };
+
+	for (size_t attr = 0; attr < ATTR_COLOR; attr++)
+	{
+		attrData[attr] = new float[nVertices * mul[attr]];
+		attrSize[attr] = sizeof(float) * mul[attr];
+	}
+	float* pVertex = attrData[0];
+	float* pNormal = attrData[1];
+	float* pTexCoord = attrData[2];
+	float* pTangent = attrData[3];
+	float* pBiTangent = attrData[4];
+
+	int minx = -m_nSizeX / 2;
+	int minz = -m_nSizeZ / 2;
+	for (int x = minx; x < minx + m_nSizeX; x++)
+		for (int z = minz; z < minz + m_nSizeZ; z++)
+		{
+			*pVertex++ = (float)x;
+			*pVertex++ = getHeight(x, z);
+			*pVertex++ = (float)z;
+
+			int x0 = (x == minx) ? x : x - 1;
+			int x1 = (x == minx + m_nSizeX - 1) ? x : x + 1;
+			int z0 = (z == minz) ? z : z - 1;
+			int z1 = (z == minz + m_nSizeZ - 1) ? z : z + 1;
+
+			float dy_x = getHeight(x1, z) - getHeight(x0, z);
+			float dy_z = getHeight(x, z1) - getHeight(x, z0);
+			float m = sqrt(dy_x * dy_x + 4 + dy_z * dy_z);
+			*pNormal++ = -dy_x / m;
+			*pNormal++ = 2 / m;
+			*pNormal++ = -dy_z / m;
+
+			*pTexCoord++ = (float)x / 2.f;
+			*pTexCoord++ = (float)z / 2.f;
+
+			*pTangent++ = 1;
+			*pTangent++ = dy_x / (x1 - x0);
+			*pTangent++ = 0;
+
+			*pBiTangent++ = 0;
+			*pBiTangent++ = dy_z / (z1 - z0);
+			*pBiTangent++ = 1;
+		}
+
+	return m_nSizeX * m_nSizeZ;
+}
+
+size_t C3dglTerrain::getIndexBuffer(GLuint** indexData, size_t* indSize)
+{
+	// Generate Indices
+
+	/*
+		We loop through building the triangles that
+		make up each grid square in the heightmap
+
+		(z*w+x) *----* (z*w+x+1)
+				|   /|
+				|  / |
+				| /  |
+	 ((z+1)*w+x)*----* ((z+1)*w+x+1)
+	*/
+	//Generate the triangle indices
+
+	size_t indicesSize = (m_nSizeZ - 1) * (m_nSizeX - 1);
+	GLuint* indices = new GLuint[indicesSize * 6], * pIndice = indices;
+	for (int z = 0; z < m_nSizeZ - 1; ++z)
+		for (int x = 0; x < m_nSizeX - 1; ++x)
+		{
+			*pIndice++ = x * m_nSizeZ + z; // current point
+			*pIndice++ = x * m_nSizeZ + z + 1; // next row
+			*pIndice++ = (x + 1) * m_nSizeZ + z; // same row, next col
+
+			*pIndice++ = x * m_nSizeZ + z + 1; // next row
+			*pIndice++ = (x + 1) * m_nSizeZ + z + 1; //next row, next col
+			*pIndice++ = (x + 1) * m_nSizeZ + z; // same row, next col
+		}
+
+	*indexData = indices;
+	*indSize = sizeof(GLuint);
+	return indicesSize * 6;
+}
+
+void C3dglTerrain::cleanUp(float** attrData, GLuint* indexData)
+{
+	for (int attr = 0; attr < ATTR_COLOR; attr++)
+		delete[] attrData[attr];
+	delete[] indexData;
+}
+
 
 float C3dglTerrain::getHeight(int x, int z)
 {
@@ -61,468 +178,154 @@ float C3dglTerrain::getInterpolatedHeight(float fx, float fz)
 		return glm::dot(barycentric(glm::vec2(fx, fz), glm::vec2(0, 1), glm::vec2(1, 0), glm::vec2(1, 1)), glm::vec3(getHeight(x, z + 1), getHeight(x + 1, z), getHeight(x + 1, z + 1)));
 }
 
-bool C3dglTerrain::loadHeightmap(const std::string filename, float scaleHeight)
+bool C3dglTerrain::load(const std::string filename, float scaleHeight)
 {
+	m_name = filename;
+	size_t i = m_name.find_last_of("/\\");
+	if (i != std::string::npos) m_name = m_name.substr(i + 1);
+	i = m_name.find_last_of(".");
+	if (i != std::string::npos) m_name = m_name.substr(0, i);
+
 	C3dglBitmap bm;
-	bm.load(filename, GL_RGBA);
+	if (!bm.load(filename, GL_RGBA))
+		return false;
 
-	m_nSizeX = bm.getWidth();
-	m_nSizeZ = abs(bm.getHeight());
-
-	m_fScaleHeight = scaleHeight;
-
-	// Collect Height Values
-	m_heights.clear();
-    m_heights.reserve(m_nSizeX * m_nSizeZ); //Reserve some space (faster)
-	for (int i = 0; i < m_nSizeX; i++)
-		for (int j = m_nSizeZ - 1; j >= 0; j--)
-		{
-			int index = (i + j * m_nSizeX) * 4;
-			unsigned char *pBytes = (unsigned char*)(bm.getBits());
-			unsigned char val = pBytes[index];
-			float f = (float)val / 256.0f;
-			m_heights.push_back(f * m_fScaleHeight);
-		}
-
-//bool C3dglTerrain::loadHeightmap(const std::wstring& rawFile, float scaleHeight)
-//{
-//	// Windows-specific code
-//	// We are using WinAPI-32 functions to load a bitmap and read height map
-//	HBITMAP hBitmap = (HBITMAP)LoadImage(NULL, rawFile.c_str(), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION | LR_LOADFROMFILE);
-//	if (!hBitmap) return false;		// file not found, bad format or other error
-//	BITMAP bitmap;
-//	GetObject(hBitmap, sizeof(bitmap), &bitmap);
-//	m_nSizeX = bitmap.bmWidth;
-//	m_nSizeZ = abs(bitmap.bmHeight);
-//	HDC hdc = CreateCompatibleDC(GetDC(0));
-//	SelectObject(hdc, (HGDIOBJ)hBitmap);
-//
-//	// Collect Height Values
-//    m_heights.reserve(m_nSizeX * m_nSizeZ); //Reserve some space (faster)
-//	for (int i = 0; i < m_nSizeX; i++)
-//		for (int j = 0; j < m_nSizeZ; j++)
-//		{
-//			auto pixel = GetPixel(hdc, i, j);
-//			auto g = GetGValue(pixel);
-//			float f = (float)g / 256.0f * scaleHeight;
-//			m_heights.push_back(f);
-//		}
-
-	// Collect Vertices, Normals and Lines (the latter - for the visualisation of normal vectors)
-	size_t size = m_nSizeX * m_nSizeZ;
-	float* vertices = new float[size * 3], *pVertex = vertices;
-	float* normals = new float[size * 3], * pNormal = normals;
-	float* tangents = new float[size * 3], * pTangent = tangents;
-	float* bitangents = new float[size * 3], * pBiTangent = bitangents;
-	float* texCoords = new float[size * 2], * pTexCoord = texCoords;
-	float* lines = new float[size *  6], *pLine = lines;
-	int minx = -m_nSizeX / 2;
-	int minz = -m_nSizeZ / 2;
-	for (int x = minx; x < minx + m_nSizeX; x++)
-		for (int z = minz; z < minz + m_nSizeZ; z++)
-		{
-			*pVertex++ = (float)x;
-			*pVertex++ = getHeight(x, z);
-			*pVertex++ = (float)z;
-
-			int x0 = (x == minx) ? x : x - 1;
-			int x1 = (x == minx + m_nSizeX - 1) ? x : x + 1;
-			int z0 = (z == minz) ? z : z - 1;
-			int z1 = (z == minz + m_nSizeZ - 1) ? z : z + 1;
-
-			float dy_x = getHeight(x1, z) - getHeight(x0, z);
-			float dy_z = getHeight(x, z1) - getHeight(x, z0);
-			float m = sqrt(dy_x * dy_x + 4 + dy_z * dy_z);
-			*pNormal++ = -dy_x / m;
-			*pNormal++ = 2 / m;
-			*pNormal++ = -dy_z / m;
-
-			*pTangent++ = 1;
-			*pTangent++ = dy_x / (x1 - x0);
-			*pTangent++ = 0;
-			*pBiTangent++ = 0;
-			*pBiTangent++ = dy_z / (z1 - z0);
-			*pBiTangent++ = 1;
-
-			*pTexCoord++ = (float)x / 2.f;
-			*pTexCoord++ = (float)z / 2.f;
-
-			*pLine++ = (float)x;
-			*pLine++ = getHeight(x, z);
-			*pLine++ = (float)z;
-			*pLine++ = x - dy_x / m;
-			*pLine++ = getHeight(x, z) + 2 / m;
-			*pLine++ = z - dy_z / m;
-		}
-
-	// Prepare Vertex Buffer
-	glGenBuffers(1, &m_vertexBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 3, &vertices[0], GL_STATIC_DRAW);
-
-	// Prepare Normal Buffer
-	glGenBuffers(1, &m_normalBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 3, &normals[0], GL_STATIC_DRAW);
-
-	// Prepare Tangent Buffer
-	glGenBuffers(1, &m_tangentBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_tangentBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 3, &tangents[0], GL_STATIC_DRAW);
-
-	// Prepare BiTangent Buffer
-	glGenBuffers(1, &m_bitangentBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_bitangentBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 3, &bitangents[0], GL_STATIC_DRAW);
-
-	// Prepare TexCoords Buffer
-	glGenBuffers(1, &m_texCoordBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 2, &texCoords[0], GL_STATIC_DRAW);
-
-	// Prepare Vertex Buffer for Visualisation of Normal Vectors
-	glGenBuffers(1, &m_linesBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_linesBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size * 6, &lines[0], GL_STATIC_DRAW);
-
-	delete[] vertices;
-	delete[] normals;
-	delete[] tangents;
-	delete[] bitangents;
-	delete[] texCoords;
-	delete[] lines;
-
-	// Generate Indices
-	
-    /*
-        We loop through building the triangles that
-        make up each grid square in the heightmap
-
-        (z*w+x) *----* (z*w+x+1)
-                |   /|
-                |  / |
-                | /  |
-     ((z+1)*w+x)*----* ((z+1)*w+x+1)
-    */
-    //Generate the triangle indices
-
-	size_t indicesSize = (m_nSizeZ - 1) * (m_nSizeX - 1);
-	unsigned int *indices = new unsigned int[indicesSize * 6], *pIndice = indices;
-	for (int z = 0; z < m_nSizeZ - 1; ++z)
-		for (int x = 0; x < m_nSizeX - 1; ++x)
-		{
-			*pIndice++ = x * m_nSizeZ + z; // current point
-			*pIndice++ = x * m_nSizeZ + z + 1; // next row
-			*pIndice++ = (x + 1) * m_nSizeZ + z; // same row, next col
-
-			*pIndice++ = x * m_nSizeZ + z + 1; // next row
-			*pIndice++ = (x + 1) * m_nSizeZ + z + 1; //next row, next col
-			*pIndice++ = (x + 1) * m_nSizeZ + z; // same row, next col
-		}
-
-	glGenBuffers(1, &m_indexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indicesSize * 6, indices, GL_STATIC_DRAW);
-
-	delete[] indices;
-
-
-	//// Collect Vertices, Normals and Lines (the latter - for the visualisation of normal vectors)
-	 //   vector<float> vertices;
-	 //   vector<float> normals;
-	 //   vector<float> texCoords;
-		//vector<float> lines;
-		//vertices.reserve(m_nSizeX * m_nSizeZ * 3);
-		//normals.reserve(m_nSizeX * m_nSizeZ * 3);
-		//texCoords.reserve(m_nSizeX * m_nSizeZ * 2);
-		//lines.reserve(m_nSizeX * m_nSizeZ * 6);
-		//int minx = -m_nSizeX/2;
-		//int minz = -m_nSizeZ/2;
-		//for (int x = minx; x < minx + m_nSizeX; x++)
-		//	for (int z = minz; z < minz + m_nSizeZ; z++)
-		//	{
-		//		vertices.push_back((float)x);
-		//		vertices.push_back(getHeight(x, z));
-		//		vertices.push_back((float)z);
-
-		//		int x0 = (x == minx) ? x : x - 1;
-		//		int x1 = (x == minx + m_nSizeX-1) ? x : x + 1;
-		//		int z0 = (z == minz) ? z : z - 1;
-		//		int z1 = (z == minz + m_nSizeZ-1) ? z : z + 1;
-
-		//		float dy_x = getHeight(x1, z) - getHeight(x0, z);
-		//		float dy_z = getHeight(x, z1) - getHeight(x, z0);
-		//		float m = sqrt(dy_x * dy_x + 4 + dy_z * dy_z);
-		//		normals.push_back(-dy_x / m);
-		//		normals.push_back(2 / m);
-		//		normals.push_back(-dy_z / m);
-
-		//		texCoords.push_back((float)x / 2.f);
-		//		texCoords.push_back((float)z / 2.f);
-
-		//		lines.push_back((float)x);
-		//		lines.push_back(getHeight(x, z));
-		//		lines.push_back((float)z);
-		//		lines.push_back(x - dy_x / m);
-		//		lines.push_back(getHeight(x, z) + 2 / m);
-		//		lines.push_back(z - dy_z / m);
-		//	}
-
-		//// Prepare Vertex Buffer
-	 //   glGenBuffers(1, &m_vertexBuffer);
-	 //   glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-	 //   glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
-
-		//// Prepare Normal Buffer
-	 //   glGenBuffers(1, &m_normalBuffer);
-	 //   glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer);
-	 //   glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * normals.size(), &normals[0], GL_STATIC_DRAW);
-
-		//// Prepare TexCoords Buffer
-		//glGenBuffers(1, &m_texCoordBuffer);
-		//glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
-		//glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * texCoords.size(), &texCoords[0], GL_STATIC_DRAW);
-
-		//// Prepare Vertex Buffer for Visualisation of Normal Vectors
-	 //   glGenBuffers(1, &m_linesBuffer);
-	 //   glBindBuffer(GL_ARRAY_BUFFER, m_linesBuffer);
-	 //   glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * lines.size(), &lines[0], GL_STATIC_DRAW);
-		
-	 
-	 //vector<unsigned int> indices;
-	//indices.reserve((m_nSizeZ - 1) * (m_nSizeX - 1) * 6);
-	//for (int z = 0; z < m_nSizeZ - 1; ++z)
-	//	for (int x = 0; x < m_nSizeX - 1; ++x)
-	//	{
-	//		indices.push_back(x * m_nSizeZ + z); // current point
-	//		indices.push_back(x * m_nSizeZ + z + 1); // next row
-	//		indices.push_back((x + 1) * m_nSizeZ + z); // same row, next col
-
-	//		indices.push_back(x * m_nSizeZ + z + 1); // next row
-	//		indices.push_back((x + 1) * m_nSizeZ + z + 1); //next row, next col
-	//		indices.push_back((x + 1) * m_nSizeZ + z); // same row, next col
-	//	}
-
-	//// Prepare Index Buffer
- //   glGenBuffers(1, &m_indexBuffer);
- //   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
- //   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * indices.size(), &indices[0], GL_STATIC_DRAW);
-
-    return true;
-}
-
-bool C3dglTerrain::storeAsOBJ(const std::string filename)
-{
-	std::ofstream wf(filename, std::ios::out);
-
-	wf << "# 3dgl Mesh Exporter - (c)2021 Jarek Francik" << std::endl << std::endl;
-	wf << "# object Terrain1" << std::endl << std::endl;
-
-	// recreate the buffers - this is not a good style of programming!
-	// Collect Vertices, Normals and Lines (the latter - for the visualisation of normal vectors)
-	std::vector<float> vertices;
-	std::vector<float> normals;
-	std::vector<float> texCoords;
-	int minx = -m_nSizeX / 2;
-	int minz = -m_nSizeZ / 2;
-	for (int x = minx; x < minx + m_nSizeX; x++)
-		for (int z = minz; z < minz + m_nSizeZ; z++)
-		{
-			vertices.push_back((float)x);
-			vertices.push_back(getHeight(x, z));
-			vertices.push_back((float)z);
-
-			int x0 = (x == minx) ? x : x - 1;
-			int x1 = (x == minx + m_nSizeX - 1) ? x : x + 1;
-			int z0 = (z == minz) ? z : z - 1;
-			int z1 = (z == minz + m_nSizeZ - 1) ? z : z + 1;
-
-			float dy_x = getHeight(x1, z) - getHeight(x0, z);
-			float dy_z = getHeight(x, z1) - getHeight(x, z0);
-			float m = sqrt(dy_x * dy_x + 4 + dy_z * dy_z);
-			normals.push_back(-dy_x / m);
-			normals.push_back(2 / m);
-			normals.push_back(-dy_z / m);
-
-			texCoords.push_back((float)x / 2.f);
-			texCoords.push_back((float)z / 2.f);
-		}
-
-	//Generate the triangle indices
-	std::vector<unsigned int> indices;
-	for (int z = 0; z < m_nSizeZ - 1; ++z)
-		for (int x = 0; x < m_nSizeX - 1; ++x)
-		{
-			indices.push_back(x * m_nSizeZ + z); // current point
-			indices.push_back(x * m_nSizeZ + z + 1); // next row
-			indices.push_back((x + 1) * m_nSizeZ + z); // same row, next col
-
-			indices.push_back(x * m_nSizeZ + z + 1); // next row
-			indices.push_back((x + 1) * m_nSizeZ + z + 1); //next row, next col
-			indices.push_back((x + 1) * m_nSizeZ + z); // same row, next col
-		}
-
-	for (size_t i = 0; i < vertices.size(); i += 3)
-		wf << "v  " << vertices[i] << " " << vertices[i + 1] << " " << vertices[i + 2] << std::endl;
-	wf << std::endl;
-
-	for (size_t i = 0; i < normals.size(); i += 3)
-		wf << "vn  " << normals[i] << " " << normals[i + 1] << " " << normals[i + 2] << std::endl;
-	wf << std::endl;
-
-	for (size_t i = 0; i < texCoords.size(); i += 2)
-		wf << "vt  " << texCoords[i] << " " << texCoords[i + 1] << " " << 0.0f << std::endl;
-	wf << std::endl;
-
-	wf << "g Terrain1" << std::endl;
-	wf << "s 1" << std::endl;
-	for (size_t i = 0; i < indices.size(); i += 3)
-		wf << "f  " << indices[i] << "/" << indices[i] << "/" << indices[i] << " "
-				    << indices[i+1] << "/" << indices[i+1] << "/" << indices[i+1] << " "
-				    << indices[i+2] << "/" << indices[i+2] << "/" << indices[i+2] << std::endl;
-
+	create(bm.getWidth(), abs(bm.getHeight()), scaleHeight, bm.getBits());
 	return true;
 }
 
-bool C3dglTerrain::storeAsRAW(const std::string filename)
+void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes)
 {
-	// store heightmap
-	std::ofstream wf(filename, std::ios::out | std::ios::binary);
-	for (int i = 0; i < m_nSizeX; i++)
-		for (int j = 0; j < m_nSizeZ; j++)
+	if (m_heights)
+		destroy();
+
+	// Find the Current Program
+	m_pProgram = C3dglProgram::getCurrentProgram();
+	m_pLastProgramUsed = NULL;
+
+	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
+	GLint* attrId = NULL;
+	if (m_pProgram)
+	{
+		attrId = m_pProgram->getShaderSignature();
+
+		// Generate warnings
+		if (attrId[ATTR_VERTEX] == -1)
+			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
+		if (attrId[ATTR_NORMAL] == -1)
+			log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
+	}
+	else
+	{
+		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
+		static GLint a[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY, -1, -1, -1, -1, -1 };
+		attrId = a;
+	}
+
+	// create VAO
+	glGenVertexArrays(1, &m_idVAO);
+	glBindVertexArray(m_idVAO);
+
+	createHeightMap(nSizeX, nSizeZ, fScaleHeight, pBytes);
+
+	// Prepare Attributes - and pack them into temporary buffers
+	float* attrData[ATTR_COLOR];
+	size_t attrSize[ATTR_COLOR];
+	size_t nVertices = getBuffers(attrData, attrSize);
+
+	// generate VBO's and enable attrinuttes in VAO
+	for (size_t attr = ATTR_VERTEX; attr < ATTR_COLOR; attr++)
+		if (attrId[attr] != -1)
 		{
-			int index = j + i * m_nSizeX;
-			unsigned char val = (unsigned char)(m_heights[index] * 256 / m_fScaleHeight);
-			wf.put(val);
+			// Prepare Vertex Buffer
+			glGenBuffers(1, &m_id[attr]);
+			glBindBuffer(GL_ARRAY_BUFFER, m_id[attr]);
+			glBufferData(GL_ARRAY_BUFFER, nVertices * attrSize[attr], attrData[attr], GL_STATIC_DRAW);
+
+			if (m_pProgram)
+			{
+				glEnableVertexAttribArray(attrId[attr]);
+				glVertexAttribPointer(attrId[attr], static_cast<GLint>(attrSize[attr] / sizeof(float)), GL_FLOAT, GL_FALSE, 0, 0);
+			}
+			else
+			{
+				glEnableClientState(attrId[attr]);
+				switch (attr)
+				{
+				case ATTR_VERTEX: glVertexPointer(3, GL_FLOAT, 0, 0); break;
+				case ATTR_NORMAL: glNormalPointer(GL_FLOAT, 0, 0); break;
+				case ATTR_TEXCOORD: glTexCoordPointer(2, GL_FLOAT, 0, 0); break;
+				}
+			}
 		}
-	wf.close();
-	return true;
+
+	GLuint* indices = NULL;
+	size_t indSize = 0;
+	size_t nIndices = getIndexBuffer(&indices, &indSize);
+
+	glGenBuffers(1, &m_idIndex);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_idIndex);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indSize * nIndices, indices, GL_STATIC_DRAW);
+
+	cleanUp(attrData, indices);
+
+	// Reset VAO & buffers
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void C3dglTerrain::destroy()
+{
+	for (unsigned attr = ATTR_VERTEX; attr < ATTR_COLOR; attr++)
+		glDeleteBuffers(1, &m_id[attr]);
+	std::fill(m_id, m_id + ATTR_COLOR, 0);
+	glDeleteBuffers(1, &m_idIndex); m_idIndex = 0;
+	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
+	delete[] m_heights;
+	m_heights = NULL;
 }
 
 void C3dglTerrain::render(glm::mat4 matrix)
 {
 	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
+	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
+
+	// perform compatibility checks
+	// the only point of this paragraph is to display warnings if the shader used to render and the shader used to load the model are different
+	if (pProgram != m_pLastProgramUsed)		// first conditional is used to bypass the check if the current program is the same as the last program used
+	{
+		m_pLastProgramUsed = pProgram;
+		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
+		{
+
+			GLint* pLoadSignature = m_pProgram->getShaderSignature();
+			GLint* pRenderSignature = pProgram->getShaderSignature();
+			if (std::equal(pLoadSignature, pLoadSignature + ATTR_LAST, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
+				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
+			else
+			{
+				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
+				for (unsigned i = 0; i < ATTR_LAST; i++)
+					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
+						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
+					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)
+						log(M3DGL_WARNING_VERTEX_BUFFER_NOT_LOADED_BUT_REQUESTED + i);
+			}
+		}
+	}
 
 	if (pProgram)
-	{
 		pProgram->sendUniform(UNI_MODELVIEW, matrix);
-
-		GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
-		GLint attribNormal = pProgram->getAttribLocation(ATTR_NORMAL);
-		GLint attribTangent = pProgram->getAttribLocation(ATTR_TANGENT);
-		GLint attribBiTangent = pProgram->getAttribLocation(ATTR_BITANGENT);
-		GLint attribTexCoord = pProgram->getAttribLocation(ATTR_TEXCOORD);
-
-		// programmable pipeline
-		glEnableVertexAttribArray(attribVertex);
-		glEnableVertexAttribArray(attribNormal);
-		if (attribTangent != -1) glEnableVertexAttribArray(attribTangent);
-		if (attribBiTangent != -1) glEnableVertexAttribArray(attribBiTangent);
-		glEnableVertexAttribArray(attribTexCoord);
-
-		//Bind the vertex array and set the vertex pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-		glVertexAttribPointer(attribVertex, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-		// Bind the normal array and set the normal pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer);
-		glVertexAttribPointer(attribNormal, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-		// Bind the tangent array and set the tangent pointer to point at it
-		if (attribTangent != -1)
-		{
-			glBindBuffer(GL_ARRAY_BUFFER, m_tangentBuffer);
-			glVertexAttribPointer(attribTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		}
-
-		// Bind the bitangent array and set the bitangent pointer to point at it
-		if (attribBiTangent != -1)
-		{
-			glBindBuffer(GL_ARRAY_BUFFER, m_bitangentBuffer);
-			glVertexAttribPointer(attribBiTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		}
-
-		// Bind the tex coord array and set the tex coord pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
-		glVertexAttribPointer(attribTexCoord, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-		//Bind the index array and draw triangles
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
-		glDrawElements(GL_TRIANGLES, (m_nSizeX - 1) * (m_nSizeZ - 1) * 6, GL_UNSIGNED_INT, 0);
-
-		glDisableVertexAttribArray(attribVertex);
-		glDisableVertexAttribArray(attribNormal);
-		if (attribTangent != -1) glDisableVertexAttribArray(attribTangent);
-		if (attribBiTangent != -1) glDisableVertexAttribArray(attribBiTangent);
-		glDisableVertexAttribArray(attribTexCoord);
-	}
 	else
 	{
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
 		glMultMatrixf((GLfloat*)&matrix);
-
-		// fixed pipeline rendering
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glEnableClientState(GL_NORMAL_ARRAY);
-
-		//Bind the vertex array and set the vertex pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-		glVertexPointer(3, GL_FLOAT, 0, 0);
-
-		// Bind the normal array and set the normal pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer);
-		glNormalPointer(GL_FLOAT, 0, 0);
-
-		// Bind the tex coord array and set the tex coord pointer to point at it
-		glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
-		glTexCoordPointer(2, GL_FLOAT, 0, 0);
-
-		//Bind the index array and draw triangles
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
-		glDrawElements(GL_TRIANGLES, (m_nSizeX - 1) * (m_nSizeZ - 1) * 6, GL_UNSIGNED_INT, 0);
-
-		glDisableClientState(GL_VERTEX_ARRAY);
-		glDisableClientState(GL_NORMAL_ARRAY);
 	}
+
+	glBindVertexArray(m_idVAO);
+	glDrawElements(GL_TRIANGLES, (m_nSizeX - 1) * (m_nSizeZ - 1) * 6, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
 }
-
-void C3dglTerrain::render()
-{
-	glm::mat4 m;
-	glGetFloatv(GL_MODELVIEW_MATRIX, (GLfloat*)&m);
-	render(m);
-}
-
-void C3dglTerrain::renderNormals()
-{
-	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
-	if (pProgram)
-	{
-		GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
-
-		// programmable pipeline
-		glDisable(GL_LIGHTING);
-		glEnableVertexAttribArray(attribVertex);
-		glBindBuffer(GL_ARRAY_BUFFER, m_linesBuffer);
-		glVertexAttribPointer(attribVertex, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glDrawArrays(GL_LINES, 0, m_nSizeX * m_nSizeZ * 2);
-		glDisableVertexAttribArray(attribVertex);
-		glEnable(GL_LIGHTING);
-	}
-	else
-	{
-		// fixed pipeline rendering
-		glDisable(GL_LIGHTING);
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glBindBuffer(GL_ARRAY_BUFFER, m_linesBuffer);
-		glVertexPointer(3, GL_FLOAT, 0, 0);
-		glDrawArrays(GL_LINES, 0, m_nSizeX * m_nSizeZ * 2);
-		glDisableClientState(GL_VERTEX_ARRAY);
-		glEnable(GL_LIGHTING);
-	}
-}
-
 

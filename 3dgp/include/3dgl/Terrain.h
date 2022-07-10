@@ -5,9 +5,9 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 A terrain class.
 Usage:
-loadHeightmap to load the height map and scale its height
+load to load the height map and scale its height
 render to render the terrain
-renderNormals to render terrain normal vectors
+getHeight or getInterpolatedHeight to obtain the height of the terrain at the given coords
 ----------------------------------------------------------------------------------
 This software is provided 'as-is', without any express or implied
 warranty. In no event will the authors be held liable for any damages
@@ -33,48 +33,64 @@ freely, subject to the following restrictions:
 #ifndef __3dglTerrain_h_
 #define __3dglTerrain_h_
 
-#include <string>
-#include <vector>
+// Include GLM core features
+#include "../glm/glm.hpp"
+
+#include "Object.h"
+#include "CommonDef.h"
 
 namespace _3dgl
 {
+	class C3dglProgram;
+
+	class MY3DGL_API C3dglTerrain : public C3dglObject
+	{
+		std::string m_name;	// model name (derived from the filename)
+
+		// shader-related data
+		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL if fixed pipeline or no model loaded
+		C3dglProgram* m_pLastProgramUsed;			// the last program used for rendering; NULL if never rendered since loading the model
+
+		// height map size (may be rectangular)
+		float* m_heights;			// heights
+		int m_nSizeX, m_nSizeZ;		// size (may be rectangular)
+		float m_fScaleHeight;		// heigth (vertical) scale
+
+		// VAO (Vertex Array Object) id
+		GLuint m_idVAO;
+
+		// Attribute Buffer Ids
+		GLuint m_id[ATTR_COLOR];	// mote: only 5 attributes created by terrain objects (no colour or bone attr)
+		GLuint m_idIndex;			// index buffer id
+
+	protected:
+		void createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
+		size_t getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATTR_COLOR]);
+		size_t getIndexBuffer(GLuint** indexData, size_t* indSize);
+		void cleanUp(float** attrData, GLuint* indexData);		// call after getBuffers well data no longer required
+
+	public:
+		C3dglTerrain();
+		virtual ~C3dglTerrain() { destroy(); }
+
+		// heightmap information
+		float* getHeightMap() { return m_heights; }
+		void getSize(int& nSizeX, int& nSizeZ, float& fScaleHeight) { nSizeX = m_nSizeX, nSizeZ = m_nSizeZ, fScaleHeight = m_fScaleHeight;  }
+		float getHeight(int x, int z);
+		float getInterpolatedHeight(float x, float z);
+
+		bool load(const std::string filename, float scaleHeight);
+		void create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
+		void destroy();
+
+		void render(glm::mat4 matrix);
+
+		std::string getName() { return "Terrain (" + m_name + ")"; }
+
+		friend bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
+	};
 	
-class MY3DGL_API C3dglTerrain
-{
-	// height map size (may be rectangular)
-	int m_nSizeX, m_nSizeZ;
-	float m_fScaleHeight;
-
-	// buffer names
-    unsigned int m_vertexBuffer;
-	unsigned int m_normalBuffer;
-	unsigned int m_tangentBuffer;
-	unsigned int m_bitangentBuffer;
-	unsigned m_texCoordBuffer;
-    unsigned int m_indexBuffer;
-    unsigned int m_linesBuffer;
-
-public:
-    C3dglTerrain();
-
-	// height map
-#pragma warning(push)
-#pragma warning(disable: 4251)
-	std::vector<float> m_heights;
-#pragma warning(pop)
-
-	float getHeight(int x, int z);
-	float getInterpolatedHeight(float x, float z);
-
-	bool loadHeightmap(const std::string filename, float scaleHeight);
-	void render(glm::mat4 matrix);
-	void render();
-	void renderNormals();
-
-	bool storeAsOBJ(const std::string filename);
-	bool storeAsRAW(const std::string filename);
-};
-
+	bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
 }; // namespace _3dgl
 
 #endif

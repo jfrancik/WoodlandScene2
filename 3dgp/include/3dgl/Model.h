@@ -88,7 +88,7 @@ namespace _3dgl
 
 		// Loading
 		// load a model from file
-		bool load(const char* pFile, unsigned int flags = 0);
+		bool load(const char* filename, unsigned int flags = 0);
 		// create a model from AssImp handle - useful if you are using AssImp directly
 		void create(const aiScene* pScene);
 		// create material information and load textures from MTL file - must be preceded by either load or create
@@ -99,11 +99,6 @@ namespace _3dgl
 		unsigned loadAnimations(C3dglModel* pCompatibleModel);
 		// destroy the model (releases all meshes, materials and animations loaded)
 		void destroy();
-
-		// enable or disable additional AssImp logger. Default: disabled
-		enum AssimpLoggingLevel { NORMAL, DEBUGGING, VERBOSE };
-		static void enableAssimpLoggingLevel(AssimpLoggingLevel = NORMAL);
-		static void disableAssimpLoggingLevel();
 
 		// Controls some quirky behaviour in AssImp FBX importer. By default set to false (disable preserve pivots mode)
 		// Can be changed to true in case the model doesn't appear right. Note: this flag should be set before calling load funcion!

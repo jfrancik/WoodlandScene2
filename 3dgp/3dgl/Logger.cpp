@@ -14,7 +14,9 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 using namespace _3dgl;
 
-CLogger::CLogger()
+unsigned C3dglLogger::c_options = LOGGER_COLLAPSE_MESSAGES;
+
+C3dglLogger::C3dglLogger()
 {
 	operator[](M3DGL_SUCCESS) = "{}";
 	operator[](M3DGL_SUCCESS_IMPORTING_FILE) = "is importing file: {}.";
@@ -28,7 +30,6 @@ CLogger::CLogger()
 	operator[](M3DGL_SUCCESS_VERIFICATION) = "verification result: {}.";
 	operator[](M3DGL_SUCCESS_LOADED) = "loaded from: {}.";
 	operator[](M3DGL_SUCCESS_LOADED_FROM_EMBED_FILE) = "loaded from embedded file: {}.";
-	operator[](M3DGL_SUCCESS_BONES_FOUND) = "\b: bones found: {}.";
 
 	operator[](M3DGL_WARNING_GENERIC) = "{}";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_FOUND) = "uniform location not found: {}.";
@@ -59,7 +60,7 @@ CLogger::CLogger()
 	operator[](M3DGL_WARNING_BONE_WEIGHT_BUFFER_NOT_LOADED_BUT_REQUESTED) = "was not requested to load a bone weight buffer but it appears to be used by the current shader program.";
 	operator[](M3DGL_WARNING_NON_TRIANGULAR_MESH) = "is loading non-triangular mesh. Only triangular meshes are supported.";
 	operator[](M3DGL_WARNING_NO_VERTICES) = "has no vertices.";
-	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is using {} UV coordinates. Only 2 UV coordinates are supported.";
+	operator[](M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING) = "is using {} texture coordinates. Only 2 UV coordinates are supported; any excessive coordinates will be ignored.";
 	operator[](M3DGL_WARNING_MAX_BONES_EXCEEDED) = "has exceeded the maximum number of bones.";
 	operator[](M3DGL_WARNING_VERTEX_BUFFER_MISSING) = "is missing vertex buffer information.";
 	operator[](M3DGL_WARNING_NORMAL_BUFFER_MISSING) = "is missing normal buffer information.";
@@ -89,19 +90,19 @@ CLogger::CLogger()
 	operator[](M3DGL_ERROR_UNKNOWN_LINKING_ERROR) = "unknown linking error";
 }
 
-CLogger& CLogger::getInstance()
+C3dglLogger& C3dglLogger::getInstance()
 {
-	static CLogger inst;
+	static C3dglLogger inst;
 	return inst;
 }
 
-std::string& CLogger::operator[](const unsigned i)
+std::string& C3dglLogger::operator[](const unsigned i)
 {
 	static std::map<unsigned, std::string> msgs;
 	return msgs[i];
 }
 
-bool CLogger::_log(unsigned nCode, std::string name, std::string message)
+bool C3dglLogger::_log(unsigned nCode, std::string name, std::string message)
 {
 	int nSeverity = 0;
 	if (nCode >= M3DGL_WARNING_GENERIC)
@@ -118,12 +119,17 @@ bool CLogger::_log(unsigned nCode, std::string name, std::string message)
 	}
 
 	static std::set<std::string> errlookup;	// used to prevent displaying the same message twice
+	bool bFirstTimeSeen = false;					// set to true if first time seen (should not be collapsed)
 	if (errlookup.find(msg) == errlookup.end())
 	{
-		// only display each message once
-
+		bFirstTimeSeen = true;
 		errlookup.insert(msg);
+	}
+	else
+		bFirstTimeSeen = false;
 
+	if (bFirstTimeSeen || (getOptions() & LOGGER_COLLAPSE_MESSAGES) == 0)
+	{
 		CONSOLE_SCREEN_BUFFER_INFO Info;
 		GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info);
 		switch (nSeverity)
@@ -131,13 +137,13 @@ bool CLogger::_log(unsigned nCode, std::string name, std::string message)
 		case 1: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN); break;
 		case 2: SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_INTENSITY); break;
 		}
-		write(msg);
+		log(msg);
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), Info.wAttributes);
 	}
 	return (nSeverity <= 1);
 }
 
-void CLogger::write(std::string msg)
+void C3dglLogger::log(std::string msg)
 {
 	std::cout << msg << std::endl;
 }

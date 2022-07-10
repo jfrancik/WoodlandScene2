@@ -37,7 +37,7 @@ C3dglProgram program;
 // The View Matrix
 mat4 matrixView;
 
-// Camera & navigatiobn
+// Camera & navigation
 float maxspeed = 4.f;	// camera max speed
 float accel = 4.f;		// camera acceleration
 vec3 _acc(0), _vel(0);	// camera acceleration and velocity vectors
@@ -81,7 +81,7 @@ bool init()
 	glutSetVertexAttribNormal(program.getAttribLocation("aNormal"));
 
 	// load your 3D models here!
-	if (!terrain.loadHeightmap("models\\heightmap.png", 50)) return false;
+	if (!terrain.load("models\\heightmap.png", 50)) return false;
 	if (!wolf.load("models\\wolf.dae")) return false;
 	wolf.loadAnimations();
 
@@ -424,12 +424,6 @@ void onMouseWheel(int button, int dir, int x, int y)
 	onReshape(glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
 }
 
-template<typename ... Args> auto to_string(std::string fmt, Args ... args)
-{
-	return std::vformat(fmt, std::make_format_args(args ...));
-}
-
-
 int main(int argc, char **argv)
 {
 	// init GLUT and create Window
@@ -439,14 +433,17 @@ int main(int argc, char **argv)
 	glutInitWindowSize(1280, 720);
 	glutCreateWindow("CI5520 3D Graphics Programming");
 
+	// default logging options
+	C3dglLogger::setOptions(C3dglLogger::LOGGER_COLLAPSE_MESSAGES);
+
 	// init glew
 	GLenum err = glewInit();
 	if (GLEW_OK != err)
 	{
-		cerr << "GLEW Error: " << glewGetErrorString(err) << endl;
+		C3dglLogger::log("GLEW Error {}", (const char*)glewGetErrorString(err));
 		return 0;
 	}
-	cout << "Using GLEW " << glewGetString(GLEW_VERSION) << endl;
+	C3dglLogger::log("Using GLEW {}", (const char*)glewGetString(GLEW_VERSION));
 
 	// register callbacks
 	glutDisplayFunc(onRender);
@@ -459,14 +456,15 @@ int main(int argc, char **argv)
 	glutMotionFunc(onMotion);
 	glutMouseWheelFunc(onMouseWheel);
 
-	cout << "Vendor: " << glGetString(GL_VENDOR) << endl;
-	cout << "Renderer: " << glGetString(GL_RENDERER) << endl;
-	cout << "Version: " << glGetString(GL_VERSION) << endl << endl;
+	C3dglLogger::log("Vendor: {}", (const char *)glGetString(GL_VENDOR));
+	C3dglLogger::log("Renderer: {}", (const char *)glGetString(GL_RENDERER));
+	C3dglLogger::log("Version: {}", (const char*)glGetString(GL_VERSION));
+	C3dglLogger::log("");
 
 	// init light and everything – not a GLUT or callback function!
 	if (!init())
 	{
-		cerr << "Application failed to initialise" << endl << endl;
+		C3dglLogger::log("Application failed to initialise\r\n");
 		return 0;
 	}
 

@@ -29,31 +29,29 @@ C3dglModel::C3dglModel() : C3dglObject(), m_globInvT(1)
 	m_bFBXImportPreservePivots = false;
 }
 
-void C3dglModel::enableAssimpLoggingLevel(AssimpLoggingLevel level)
-{
-	Assimp::DefaultLogger::create("", (Assimp::Logger::LogSeverity)level, aiDefaultLogStream_STDOUT);
-}
-
-void C3dglModel::disableAssimpLoggingLevel()
-{
-	Assimp::DefaultLogger::kill();
-}
-
-bool C3dglModel::load(const char* pFile, unsigned int flags)
+bool C3dglModel::load(const char* filename, unsigned int flags)
 {
 	if (flags == 0)
 		flags = aiProcessPreset_TargetRealtime_MaxQuality;
 
-	m_name = pFile;
+	m_name = filename;
 	size_t i = m_name.find_last_of("/\\");
 	if (i != std::string::npos) m_name = m_name.substr(i + 1);
 	i = m_name.find_last_of(".");
 	if (i != std::string::npos) m_name = m_name.substr(0, i);
 
-	log(M3DGL_SUCCESS_IMPORTING_FILE, pFile);
+	unsigned logOptions = (C3dglLogger::getOptions() & C3dglLogger::LOGGER_SHOW_ASSIMP_VERBOSE_MESSAGES) >> 2;
+	if (logOptions != 0)
+		Assimp::DefaultLogger::create("", (Assimp::Logger::LogSeverity)(logOptions - 1), aiDefaultLogStream_STDOUT);
+
+	log(M3DGL_SUCCESS_IMPORTING_FILE, filename);
 	aiPropertyStore* ps = ::aiCreatePropertyStore();
 	::aiSetImportPropertyInteger(ps, AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, m_bFBXImportPreservePivots);
-	const aiScene* pScene = aiImportFileExWithProperties(pFile, flags, NULL, ps);
+	const aiScene* pScene = aiImportFileExWithProperties(filename, flags, NULL, ps);
+	
+	if ((C3dglLogger::getOptions() & C3dglLogger::LOGGER_SHOW_ASSIMP_VERBOSE_MESSAGES) != 0)
+		Assimp::DefaultLogger::kill();
+	
 	if (pScene == NULL)
 		return log(M3DGL_ERROR_AI, aiGetErrorString());
 	create(pScene);
@@ -343,8 +341,8 @@ void C3dglModel::stats(unsigned level)
 	};
 	countNodes(countNodes, m_pScene->mRootNode);
 
-	CLogger::write("** Statistics for the model: {}", getName());
-	CLogger::write("Nodes: {}, Meshes: {}, Materials: {}, Bones: {}, Animations: {}, Channels: {}",
+	C3dglLogger::log("** Statistics for the model: {}", getName());
+	C3dglLogger::log("Nodes: {}, Meshes: {}, Materials: {}, Bones: {}, Animations: {}, Channels: {}",
 		nNodes, getMeshCount(), getMaterialCount(), getBoneCount(), getAnimationCount(), hasAnimations() ? m_pScene->mAnimations[0]->mNumChannels : 0);
 	if (level == 0) return;
 
@@ -352,12 +350,12 @@ void C3dglModel::stats(unsigned level)
 	{
 		size_t idBone = getBoneId(pNode->mName.data);
 		if (hasBone(idBone))
-			CLogger::write("{}Node: {} - BONE #{}", pred, pNode->mName.data, idBone);
+			C3dglLogger::log("{}Node: {} - BONE #{}", pred, pNode->mName.data, idBone);
 		else
-			CLogger::write("{}Node: {} (no bone identified)", pred, pNode->mName.data);
+			C3dglLogger::log("{}Node: {} (no bone identified)", pred, pNode->mName.data);
 
 		for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
-			CLogger::write("{}Mesh #{} ({}) - {} vertices, {} faces, {} bones", pred + "-", iMesh , m_pScene->mMeshes[iMesh]->mName.data, m_pScene->mMeshes[iMesh]->mNumVertices, m_pScene->mMeshes[iMesh]->mNumFaces, m_pScene->mMeshes[iMesh]->mNumBones);
+			C3dglLogger::log("{}Mesh #{} ({}) - {} vertices, {} faces, {} bones", pred + "-", iMesh , m_pScene->mMeshes[iMesh]->mName.data, m_pScene->mMeshes[iMesh]->mNumVertices, m_pScene->mMeshes[iMesh]->mNumFaces, m_pScene->mMeshes[iMesh]->mNumBones);
 		for (aiNode* pChildNode : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
 			statNode(statNode, pred + " ", pChildNode);
 	};
@@ -365,15 +363,15 @@ void C3dglModel::stats(unsigned level)
 
 	if (m_pScene->mNumAnimations > 0)
 	{
-		CLogger::write("Animation channels:");
+		C3dglLogger::log("Animation channels:");
 		for (unsigned idChannel = 0; idChannel < m_pScene->mAnimations[0]->mNumChannels; idChannel++)
 		{
 			std::string strNodeName = m_pScene->mAnimations[0]->mChannels[idChannel]->mNodeName.data;
 			size_t idBone = getBoneId(strNodeName);
 			if (hasBone(idBone))
-				CLogger::write(" {}. {} - BONE #{}", idChannel, strNodeName, idBone);
+				C3dglLogger::log(" {}. {} - BONE #{}", idChannel, strNodeName, idBone);
 			else
-				CLogger::write(" {}. {} - BONELESS", idChannel, strNodeName);
+				C3dglLogger::log(" {}. {} - BONELESS", idChannel, strNodeName);
 		}
 	}
 }

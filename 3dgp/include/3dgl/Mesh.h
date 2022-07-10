@@ -79,7 +79,8 @@ namespace _3dgl
 
 	public:
 		C3dglMesh(C3dglModel* pOwner);
-		
+		virtual ~C3dglMesh() { destroy(); }
+
 		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
 		void create(const aiMesh *pMesh, GLint attrId[ATTR_LAST]);
 

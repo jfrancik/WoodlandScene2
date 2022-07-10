@@ -44,7 +44,7 @@ size_t C3dglMesh::getBuffers(GLint attrId[ATTR_LAST], void* attrData[ATTR_LAST],
 
 	// Convert texture coordinates to occupy contageous memory space
 	GLfloat* pTexCoords = NULL;
-	if (attrId[ATTR_TEXCOORD] != -1 && m_nUVComponents == 2)
+	if (attrId[ATTR_TEXCOORD] != -1 && m_pMesh->mTextureCoords && m_pMesh->mTextureCoords[0])
 	{
 		pTexCoords = new GLfloat[m_nVertices * 2];
 		for (size_t i = 0; i < m_nVertices; i++)
@@ -60,8 +60,6 @@ size_t C3dglMesh::getBuffers(GLint attrId[ATTR_LAST], void* attrData[ATTR_LAST],
 		std::fill(pBoneIds, pBoneIds + m_nVertices * MAX_BONES_PER_VERTEX, 0);
 		pBoneWeights = new float[m_nVertices * MAX_BONES_PER_VERTEX];
 		std::fill(pBoneWeights, pBoneWeights + m_nVertices * MAX_BONES_PER_VERTEX, 0.0f);
-
-		log(M3DGL_SUCCESS_BONES_FOUND, m_pMesh->mNumBones);
 
 		// for each bone:
 		for (aiBone* pBone : std::vector<aiBone*>(m_pMesh->mBones, m_pMesh->mBones + m_pMesh->mNumBones))
@@ -283,7 +281,7 @@ void C3dglMesh::destroy()
 {
 	for (unsigned attr = ATTR_VERTEX; attr < ATTR_LAST; attr++)
 		glDeleteBuffers(1, &m_id[attr]);
-	std::fill(m_id, m_id + ATTR_VERTEX, 0);
+	std::fill(m_id, m_id + ATTR_LAST, 0);
 	glDeleteBuffers(1, &m_idIndex); m_idIndex = 0;
 	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
 }
@@ -326,7 +324,9 @@ C3dglMaterial* C3dglMesh::createNewMaterial()
 
 std::string C3dglMesh::getName()
 {
-	if (m_name.empty())
+	if ((C3dglLogger::getOptions() & C3dglLogger::LOGGER_USE_MESH_NAMES) == 0)
+		return std::format("{} mesh", m_pOwner->getName());
+	else if (m_name.empty())
 		return std::format("{}/mesh #{}", m_pOwner->getName(), m_pOwner->getMeshIndex(this));
 	else
 		return std::format("{}/mesh #{} ({})", m_pOwner->getName(), m_pOwner->getMeshIndex(this), m_name);

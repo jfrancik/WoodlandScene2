@@ -55,7 +55,7 @@ namespace _3dgl
 		template<typename ... Args>
 		bool log(unsigned nCode, Args... args)
 		{
-			return CLogger::log(nCode, getName(), args ...);
+			return C3dglLogger::log(nCode, getName(), args ...);
 		}
 
 	};
