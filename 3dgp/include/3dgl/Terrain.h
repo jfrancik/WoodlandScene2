@@ -42,6 +42,7 @@ freely, subject to the following restrictions:
 namespace _3dgl
 {
 	class C3dglProgram;
+	class C3dglMesh;
 
 	class MY3DGL_API C3dglTerrain : public C3dglObject
 	{
@@ -60,14 +61,15 @@ namespace _3dgl
 		GLuint m_idVAO;
 
 		// Attribute Buffer Ids
-		GLuint m_id[ATTR_COLOR];	// mote: only 5 attributes created by terrain objects (no colour or bone attr)
+		static const size_t c_attrCount = ATTR_COLOR;	// terrains will only ever create 5 sttribute types
+		GLuint m_id[c_attrCount];	// mote: only 5 attributes created by terrain objects (no colour or bone attr)
 		GLuint m_idIndex;			// index buffer id
 
 	protected:
 		void createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
-		size_t getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATTR_COLOR]);
+		size_t getBuffers(float** attrData, size_t* attrSize, size_t attrCount);
 		size_t getIndexBuffer(GLuint** indexData, size_t* indSize);
-		void cleanUp(float** attrData, GLuint* indexData);		// call after getBuffers well data no longer required
+		void cleanUp(float** attrData, GLuint* indexData, size_t attrCount);		// call after getBuffers well data no longer required
 
 	public:
 		C3dglTerrain();
@@ -85,12 +87,14 @@ namespace _3dgl
 
 		void render(glm::mat4 matrix);
 
-		std::string getName() { return "Terrain (" + m_name + ")"; }
+		std::string getName() const { return "Terrain (" + m_name + ")"; }
 
 		friend bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
+		friend bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh);
 	};
 	
 	bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
+	bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh);
 }; // namespace _3dgl
 
 #endif

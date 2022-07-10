@@ -3,12 +3,7 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
-#include <iostream>
-#include <fstream>
-#include <vector>
-
 #include <GL/glew.h>
-#include <3dgl/CommonDef.h>
 #include <3dgl/Bitmap.h>
 #include <3dgl/Terrain.h>
 #include <3dgl/Shader.h>
@@ -42,12 +37,14 @@ void C3dglTerrain::createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, v
 		}
 }
 
-size_t C3dglTerrain::getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATTR_COLOR])
+size_t C3dglTerrain::getBuffers(float** attrData, size_t* attrSize, size_t attrCount)
 {
+	if (!attrCount) return 0;
+
 	size_t nVertices = m_nSizeX * m_nSizeZ;
 	GLint mul[] = { 3, 3, 2, 3, 3 };
 
-	for (size_t attr = 0; attr < ATTR_COLOR; attr++)
+	for (size_t attr = 0; attr < attrCount; attr++)
 	{
 		attrData[attr] = new float[nVertices * mul[attr]];
 		attrSize[attr] = sizeof(float) * mul[attr];
@@ -67,6 +64,7 @@ size_t C3dglTerrain::getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATT
 			*pVertex++ = getHeight(x, z);
 			*pVertex++ = (float)z;
 
+			if (attrCount < 2) continue;
 			int x0 = (x == minx) ? x : x - 1;
 			int x1 = (x == minx + m_nSizeX - 1) ? x : x + 1;
 			int z0 = (z == minz) ? z : z - 1;
@@ -79,13 +77,16 @@ size_t C3dglTerrain::getBuffers(float* attrData[ATTR_COLOR], size_t attrSize[ATT
 			*pNormal++ = 2 / m;
 			*pNormal++ = -dy_z / m;
 
+			if (attrCount < 3) continue;
 			*pTexCoord++ = (float)x / 2.f;
 			*pTexCoord++ = (float)z / 2.f;
 
+			if (attrCount < 4) continue;
 			*pTangent++ = 1;
 			*pTangent++ = dy_x / (x1 - x0);
 			*pTangent++ = 0;
 
+			if (attrCount < 5) continue;
 			*pBiTangent++ = 0;
 			*pBiTangent++ = dy_z / (z1 - z0);
 			*pBiTangent++ = 1;
@@ -129,9 +130,9 @@ size_t C3dglTerrain::getIndexBuffer(GLuint** indexData, size_t* indSize)
 	return indicesSize * 6;
 }
 
-void C3dglTerrain::cleanUp(float** attrData, GLuint* indexData)
+void C3dglTerrain::cleanUp(float** attrData, GLuint* indexData, size_t attrCount)
 {
-	for (int attr = 0; attr < ATTR_COLOR; attr++)
+	for (int attr = 0; attr < attrCount; attr++)
 		delete[] attrData[attr];
 	delete[] indexData;
 }
@@ -229,12 +230,12 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 	createHeightMap(nSizeX, nSizeZ, fScaleHeight, pBytes);
 
 	// Prepare Attributes - and pack them into temporary buffers
-	float* attrData[ATTR_COLOR];
-	size_t attrSize[ATTR_COLOR];
-	size_t nVertices = getBuffers(attrData, attrSize);
+	float* attrData[c_attrCount];
+	size_t attrSize[c_attrCount];
+	size_t nVertices = getBuffers(attrData, attrSize, c_attrCount);
 
 	// generate VBO's and enable attrinuttes in VAO
-	for (size_t attr = ATTR_VERTEX; attr < ATTR_COLOR; attr++)
+	for (size_t attr = ATTR_VERTEX; attr < c_attrCount; attr++)
 		if (attrId[attr] != -1)
 		{
 			// Prepare Vertex Buffer
@@ -267,7 +268,7 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_idIndex);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indSize * nIndices, indices, GL_STATIC_DRAW);
 
-	cleanUp(attrData, indices);
+	cleanUp(attrData, indices, c_attrCount);
 
 	// Reset VAO & buffers
 	glBindVertexArray(0);
@@ -277,9 +278,9 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 
 void C3dglTerrain::destroy()
 {
-	for (unsigned attr = ATTR_VERTEX; attr < ATTR_COLOR; attr++)
+	for (unsigned attr = ATTR_VERTEX; attr < c_attrCount; attr++)
 		glDeleteBuffers(1, &m_id[attr]);
-	std::fill(m_id, m_id + ATTR_COLOR, 0);
+	std::fill(m_id, m_id + c_attrCount, 0);
 	glDeleteBuffers(1, &m_idIndex); m_idIndex = 0;
 	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
 	delete[] m_heights;
@@ -301,12 +302,15 @@ void C3dglTerrain::render(glm::mat4 matrix)
 
 			GLint* pLoadSignature = m_pProgram->getShaderSignature();
 			GLint* pRenderSignature = pProgram->getShaderSignature();
-			if (std::equal(pLoadSignature, pLoadSignature + ATTR_LAST, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
+			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
+			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
+			size_t nLen = glm::min(nLoadLen, nRenderLen);
+			if (std::equal(pLoadSignature, pLoadSignature + nLen, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
 				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
 			else
 			{
 				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
-				for (unsigned i = 0; i < ATTR_LAST; i++)
+				for (unsigned i = 0; i < nLen; i++)
 					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
 						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
 					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)

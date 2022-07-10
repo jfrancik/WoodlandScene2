@@ -58,7 +58,7 @@ public:
 	long getHeight()				{ return m_idImage ? m_height : 0; }
 	void *getBits()					{ return m_idImage ? m_pBits : NULL; }
 
-	std::string getName()	{ return "Texture"; }
+	std::string getName() const		{ return "Texture"; }
 };
 
 }; // namespace _3dgl

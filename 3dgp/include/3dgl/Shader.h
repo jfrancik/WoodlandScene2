@@ -71,7 +71,7 @@ namespace _3dgl
 		GLuint getId()			{ return m_id; }
 		std::string getSource()	{ return m_source; }
 		std::string getFName()	{ return m_fname; }
-		std::string getName();	// "Vertex Shader", "Fragment Shader" etc
+		std::string getName() const;	// "Vertex Shader", "Fragment Shader" etc
 	};
 
 	class MY3DGL_API C3dglProgram : public C3dglObject
@@ -94,6 +94,7 @@ namespace _3dgl
 		std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
 #pragma warning(pop)
 
+		size_t m_stdAttrNum = ATTR_LAST;				// number of standard attributes (8)
 		GLint m_stdAttr[ATTR_LAST];						// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
 		GLint m_stdUni[UNI_LAST];						// array of standard uniform locations (see enum UNI_STD in CommonDef.h)
 
@@ -115,7 +116,8 @@ namespace _3dgl
 		GLint getAttribLocation(ATTRIB_STD attr)								{ return m_stdAttr[attr]; }
 
 		// shader "signature" - array of all standard attribute locations which defines the shader program functionality
-		GLint* getShaderSignature()												{ return m_stdAttr; }
+		GLint* getShaderSignature() { return m_stdAttr; }
+		size_t getShaderSignatureLength() { return m_stdAttrNum; }
 
 		// numerical locations and types for attribute and uniform names
 		GLint getUniformLocation(std::string idUniform);
@@ -239,7 +241,7 @@ namespace _3dgl
 		bool sendUniform(enum UNI_STD stdloc, glm::mat3 v);
 		bool sendUniform(enum UNI_STD stdloc, glm::mat4 v);
 
-		std::string getName()	{ return "GLSL Program"; }
+		std::string getName() const	{ return "GLSL Program"; }
 	
 	private:
 		// private implementation helpers

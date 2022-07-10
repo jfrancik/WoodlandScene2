@@ -116,16 +116,18 @@ namespace _3dgl
 		unsigned getMainNodeCount();
 
 		// Mesh functions
+		bool hasMeshes()						{ return m_meshes.size() > 0; }
 		size_t getMeshCount()					{ return m_meshes.size(); }
-		C3dglMesh *getMesh(unsigned i)			{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
-		size_t getMeshIndex(C3dglMesh* p)		{ return p - &m_meshes[0]; }
+		C3dglMesh *getMesh(size_t i)			{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
+		size_t getMeshIndex(const C3dglMesh* p)	{ return p - &m_meshes[0]; }
+		size_t createNewMesh()					{ size_t nIndex = m_meshes.size(); m_meshes.push_back(C3dglMesh(this)); return nIndex; }
 
 		// Material functions
-		bool hasMaterials()						{ return m_materials.size() > 0; }
+		bool hasMaterials() { return m_materials.size() > 0; }
 		size_t getMaterialCount()				{ return m_materials.size(); }
 		C3dglMaterial *getMaterial(size_t i)	{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
 		size_t getMaterialIndex(C3dglMaterial* p) { return p - &m_materials[0]; }
-		size_t createNewMaterial()				{ C3dglMaterial mat(this); size_t nIndex = m_materials.size(); m_materials.push_back(mat); return nIndex; }
+		size_t createNewMaterial()				{ size_t nIndex = m_materials.size(); m_materials.push_back(C3dglMaterial(this)); return nIndex; }
 
 		// Animation functions
 		bool hasAnimations()					{ return m_animations.size() > 0; }
@@ -162,7 +164,7 @@ namespace _3dgl
 
 		void stats(unsigned level = 0);
 
-		std::string getName() { return "Model (" + m_name + ")"; }
+		std::string getName() const { return m_name; } // "Model (" + m_name + ")";
 	};
 }; // namespace _3dgl
 

@@ -153,7 +153,7 @@ bool C3dglShader::compile()
 	return log(M3DGL_SUCCESS_COMPILED);
 }
 
-std::string C3dglShader::getName()
+std::string C3dglShader::getName() const
 {
 	switch (m_type)
 	{
@@ -259,7 +259,7 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 	};
 	size_t astart = 0, aend = 0;
 	std_attrib_names += ";";
-	for (size_t i = 0; i < ATTR_LAST; i++)
+	for (size_t attr = 0; attr < ATTR_LAST; attr++)
 	{
 		std::string str = "";
 		aend = std_attrib_names.find(";", astart);
@@ -268,7 +268,7 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 			str = std_attrib_names.substr(astart, aend - astart);
 			astart = aend + 1;
 		}
-		if (str.empty()) str = STD_ATTRIB_NAMES[i];
+		if (str.empty()) str = STD_ATTRIB_NAMES[attr];
 		str += "|";
 
 		size_t nstart = 0, nend = 0;
@@ -278,10 +278,10 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 			nstart = nend + 1;
 			if (name.empty()) continue;
 			
-			m_stdAttr[i] = glGetAttribLocation(m_id, name.c_str());
-			if (m_stdAttr[i] != -1)
+			m_stdAttr[attr] = glGetAttribLocation(m_id, name.c_str());
+			if (m_stdAttr[attr] != -1)
 			{
-				log(M3DGL_SUCCESS_ATTRIB_FOUND, name, m_stdAttr[i]);
+				log(M3DGL_SUCCESS_ATTRIB_FOUND, name, m_stdAttr[attr]);
 				break;
 			}
 		}

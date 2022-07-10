@@ -13,6 +13,11 @@ using namespace _3dgl;
 
 C3dglSkyBox::C3dglSkyBox()
 {
+	m_idVAO = 0;
+	std::fill(m_idTex, m_idTex + 6, 0);
+	m_vertexBuffer = (GLuint)-1;
+	m_normalBuffer = (GLuint)-1;
+	m_texCoordBuffer = (GLuint)-1;
 }
 
 bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn) 
@@ -64,6 +69,10 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 		0.0f, 0.0f,		1.0f, 0.0f,		1.0f, 1.0f,		0.0f, 1.0f		//Bottom
 	};
 
+	// create VAO
+	glGenVertexArrays(1, &m_idVAO);
+	glBindVertexArray(m_idVAO);
+
 	glGenBuffers(1, &m_vertexBuffer); //Generate a buffer for the vertices
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer); //Bind the vertex buffer
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW); //Send the data to OpenGL
@@ -76,29 +85,16 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 	glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer); //Bind the tex coord buffer
 	glBufferData(GL_ARRAY_BUFFER, sizeof(textCoord), &textCoord[0], GL_STATIC_DRAW); //Send the data to OpenGL
 
-	return true;
-}
 
-void C3dglSkyBox::render(glm::mat4 matrix)
-{
 	// check if a shading program is active
-	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
-	if (!pProgram) return;
-
-	// disable depth-buffer write cycles - so that the skybox cannot obscure anything
-	GLboolean bDepthMask;
-	::glGetBooleanv(GL_DEPTH_WRITEMASK, &bDepthMask);
-	glDepthMask(GL_FALSE);
+	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
+	if (!pProgram) return false;
 
 	// get shader configuration
 	GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
 	GLint attribNormal = pProgram->getAttribLocation(ATTR_NORMAL);
 	GLint attribTexCoord = pProgram->getAttribLocation(ATTR_TEXCOORD);
 	GLuint locationMatrixModelView = pProgram->getUniformLocation(UNI_MODELVIEW);
-
-	// send model view matrix
-	matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
-	pProgram->sendUniform(UNI_MODELVIEW, matrix);
 
 	glEnableVertexAttribArray(attribVertex);
 	glEnableVertexAttribArray(attribNormal);
@@ -113,24 +109,37 @@ void C3dglSkyBox::render(glm::mat4 matrix)
 	glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
 	glVertexAttribPointer(attribTexCoord, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
+	// Reset VAO & buffers
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	return true;
+}
+
+void C3dglSkyBox::render(glm::mat4 matrix)
+{
+	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
+	if (!pProgram) return;
+
+	// send model view matrix
+	matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
+	pProgram->sendUniform(UNI_MODELVIEW, matrix);
+
+	// disable depth-buffer write cycles - so that the skybox cannot obscure anything
+	GLboolean bDepthMask;
+	::glGetBooleanv(GL_DEPTH_WRITEMASK, &bDepthMask);
+	glDepthMask(GL_FALSE);
+
+	glBindVertexArray(m_idVAO);
 	glActiveTexture(GL_TEXTURE0);
 	for (int i = 0; i < 6; ++i)
 	{
 		glBindTexture(GL_TEXTURE_2D, m_idTex[i]);
 		glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
 	}
-
-	glDisableVertexAttribArray(attribVertex);
-	glDisableVertexAttribArray(attribNormal);
-	glDisableVertexAttribArray(attribTexCoord);
+	glBindVertexArray(0);
 
 	// enable depth-buffer write cycle
 	glDepthMask(bDepthMask);
-}
-
-void C3dglSkyBox::render()
-{
-	glm::mat4 m;
-	glGetFloatv(GL_MODELVIEW_MATRIX, (GLfloat*)&m);
-	render(m);
 }

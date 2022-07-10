@@ -92,7 +92,7 @@ void C3dglMaterial::render(C3dglProgram *pProgram)
 void C3dglMaterial::loadTexture(GLenum texUnit, std::string strDefTexPath, std::string strPath)
 {
 	// first of all, check for the embedded texture!
-	const aiTexture *pTexture = m_pOwner->GetScene()->GetEmbeddedTexture(strPath.c_str());
+	const aiTexture *pTexture = m_pOwner ? m_pOwner->GetScene()->GetEmbeddedTexture(strPath.c_str()) : NULL;
 	if (pTexture)
 		loadTexture(texUnit, pTexture);
 	else

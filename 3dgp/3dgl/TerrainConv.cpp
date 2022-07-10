@@ -7,9 +7,15 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <fstream>
 #include <vector>
 
+// GLM include files
+#include "../glm/gtc/type_ptr.hpp"
+
 #include <GL/glew.h>
+#include <3dgl/CommonDef.h>
 #include <3dgl/Bitmap.h>
 #include <3dgl/Terrain.h>
+#include <3dgl/Shader.h>
+#include <3dgl/Mesh.h>
 
 using namespace _3dgl;
 
@@ -23,9 +29,10 @@ bool MY3DGL_API _3dgl::convHeightmap2OBJ(const std::string fileImage, float scal
 	terrain.createHeightMap(bm.getWidth(), abs(bm.getHeight()), scaleHeight, bm.getBits());
 
 	// Prepare Attributes - and pack them into temporary buffers
-	float* attrData[ATTR_COLOR];
-	size_t attrSize[ATTR_COLOR];
-	size_t nVertices = terrain.getBuffers(attrData, attrSize);
+	const size_t attrCount = ATTR_TANGENT;	// This is a OBJ file, no need to create more than 3 attrins as tangents and bitangents are not supported!
+	float* attrData[attrCount];
+	size_t attrSize[attrCount];
+	size_t nVertices = terrain.getBuffers(attrData, attrSize, attrCount);
 
 	GLuint* indices = NULL;
 	size_t indSize = 0;
@@ -57,8 +64,36 @@ bool MY3DGL_API _3dgl::convHeightmap2OBJ(const std::string fileImage, float scal
 					<< indices[i+1] + 1 << "/" << indices[i+1] + 1 << "/" << indices[i+1] + 1 << " "
 					<< indices[i+2] + 1 << "/" << indices[i+2] + 1 << "/" << indices[i+2] + 1 << std::endl;
 
-	terrain.cleanUp(attrData, indices);
+	terrain.cleanUp(attrData, indices, attrCount);
 
 	return true;
 }
 
+bool MY3DGL_API _3dgl::convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh)
+{
+	C3dglBitmap bm;
+	if (!bm.load(fileImage, GL_RGBA) || !bm.getBits())
+		return false;
+
+	C3dglTerrain terrain;
+	terrain.createHeightMap(bm.getWidth(), abs(bm.getHeight()), scaleHeight, bm.getBits());
+
+	// Prepare Attributes - and pack them into temporary buffers
+	const size_t attrCount = ATTR_COLOR;	// 5 attribs but no colour and no bones
+	float* attrData[attrCount];
+	size_t attrSize[attrCount];
+	size_t nVertices = terrain.getBuffers(attrData, attrSize, attrCount);
+
+	GLuint* indices = NULL;
+	size_t indSize = 0;
+	size_t nIndices = terrain.getIndexBuffer(&indices, &indSize);
+
+	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
+	static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
+	if (pProgram)
+		mesh.create(pProgram->getShaderSignature(), glm::min(pProgram->getShaderSignatureLength(), attrCount), nVertices, nIndices, (void**)attrData, attrSize, indices, indSize);
+	else
+		mesh.create(fixedAttr, 3, nVertices, nIndices, (void**)attrData, attrSize, indices, indSize);
+	
+	return true;
+}

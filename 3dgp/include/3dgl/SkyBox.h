@@ -31,21 +31,22 @@ freely, subject to the following restrictions:
 
 namespace _3dgl
 {
-class MY3DGL_API C3dglSkyBox
-{
-public:
-    C3dglSkyBox();
+    class MY3DGL_API C3dglSkyBox
+    {
+        // VAO (Vertex Array Object) id
+        GLuint m_idVAO;
 
-	bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn);
-	void render(glm::mat4 matrix);
-	void render();
+        unsigned int  m_idTex[6];
 
-private:
-    unsigned int  m_idTex[6];
+        GLuint m_vertexBuffer;
+        GLuint m_normalBuffer;
+        GLuint m_texCoordBuffer;
 
-	unsigned int  m_vertexBuffer;
-    unsigned int  m_normalBuffer;
-    unsigned int  m_texCoordBuffer;
-};
+    public:
+        C3dglSkyBox();
+
+	    bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn);
+	    void render(glm::mat4 matrix);
+    };
 }
 #endif

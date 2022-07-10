@@ -47,13 +47,13 @@ namespace _3dgl
 		}
 
 		// this function must be overriden in each inheriting class
-		virtual std::string getName() = 0;
+		virtual std::string getName() const = 0;
 		
 	protected:
 		// Warning/Error logger - mostly for internal use
 		// Use Warning/Error message codes as listed in Logger.h
 		template<typename ... Args>
-		bool log(unsigned nCode, Args... args)
+		bool log(unsigned nCode, Args... args) const
 		{
 			return C3dglLogger::log(nCode, getName(), args ...);
 		}

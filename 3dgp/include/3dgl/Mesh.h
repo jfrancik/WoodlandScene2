@@ -56,12 +56,12 @@ namespace _3dgl
 		GLuint m_idVAO;
 
 		// Attribute Buffer Ids
-		GLuint m_id[ATTR_LAST];
+		static const size_t c_attrCount = ATTR_LAST;
+		GLuint m_id[c_attrCount];
 		GLuint m_idIndex;	// index buffer id
 
 		// statistics
 		size_t m_nVertices;			// number of vertices
-		size_t m_nUVComponents;		// number of UV coords - must be 2
 		size_t m_nIndices;			// number of elements to draw (size of index buffer)
 		size_t m_nBones;			// number of bones
 
@@ -72,20 +72,19 @@ namespace _3dgl
 		glm::vec3 m_aabb[2];
 	
 	protected:
-		size_t getBuffers(GLint attrId[ATTR_LAST], void* attrData[ATTR_LAST], size_t attrSize[ATTR_LAST]);
-		size_t getIndexBuffer(void** indexData, size_t *indSize);
-		void cleanUp(void** attrData, void *indexData);		// call after getBuffers well data no longer required
-		void setupBoundingVolume();
+		size_t getBuffers(const aiMesh* pMesh, GLint *attrId, void** attrData, size_t* attrSize, size_t attrCount) const;
+		size_t getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t *indSize) const;
+		void cleanUp(void** attrData, void *indexData, size_t attrCount) const;		// call after getBuffers well data no longer required
+		void getBoundingVolume(const aiMesh* pMesh, size_t nVertices, glm::vec3& aabb0, glm::vec3& aabb1) const;
 
 	public:
-		C3dglMesh(C3dglModel* pOwner);
+		C3dglMesh(C3dglModel* pOwner = NULL);
 		virtual ~C3dglMesh() { destroy(); }
 
 		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
-		void create(const aiMesh *pMesh, GLint attrId[ATTR_LAST]);
-
-		// Create a mesh using ASSIMP data - to be used with the fixed pipeline only!
-		void create(const aiMesh* pMesh);
+		// For fixed pipeline use create(pMesh, NULL, 0);
+		void create(const aiMesh* pMesh, GLint* attrId, size_t attrCount);
+		void create(GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
 
 		// Render the mesh
 		void render();
@@ -101,7 +100,6 @@ namespace _3dgl
 
 		// Statistics
 		size_t getVertexCount()			{ return m_nVertices; }
-		size_t getUVComponentCount()	{ return m_nUVComponents; }
 		size_t getIndexCount()			{ return m_nIndices; }
 		size_t getBoneCount()			{ return m_nBones; }
 
@@ -112,7 +110,7 @@ namespace _3dgl
 		// Bounding volume and geometrical centre
 		void getAABB(glm::vec3 aabb[2]) { aabb[0] = m_aabb[0]; aabb[1] = m_aabb[1]; }
 	
-		std::string getName();
+		std::string getName() const;
 	};
 
 }; // namespace _3dgl

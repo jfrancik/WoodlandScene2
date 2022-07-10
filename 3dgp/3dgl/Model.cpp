@@ -65,19 +65,21 @@ void C3dglModel::create(const aiScene* pScene)
 	m_pLastProgramUsed = NULL;
 
 	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	GLint *attribId = NULL;
+	GLint *attrId = NULL;
+	size_t attrNum = 0;
 	if (m_pProgram)
 	{
-		attribId = m_pProgram->getShaderSignature();
+		attrId = m_pProgram->getShaderSignature();
+		attrNum = m_pProgram->getShaderSignatureLength();
 
 		// Generate warnings
-		if (attribId[ATTR_VERTEX] == -1)
+		if (attrId[ATTR_VERTEX] == -1)
 			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
-		if (attribId[ATTR_NORMAL] == -1)
+		if (attrId[ATTR_NORMAL] == -1)
 			log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
-		if (attribId[ATTR_BONE_ID] != -1 && attribId[ATTR_BONE_WEIGHT] == -1)
+		if (attrId[ATTR_BONE_ID] != -1 && attrId[ATTR_BONE_WEIGHT] == -1)
 			log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
-		if (attribId[ATTR_BONE_ID] == -1 && attribId[ATTR_BONE_WEIGHT] != -1)
+		if (attrId[ATTR_BONE_ID] == -1 && attrId[ATTR_BONE_WEIGHT] != -1)
 			log(M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED);
 	}
 	else
@@ -88,10 +90,7 @@ void C3dglModel::create(const aiScene* pScene)
 	m_meshes.resize(m_pScene->mNumMeshes, C3dglMesh(this));
 	aiMesh** ppMesh = m_pScene->mMeshes;
 	for (C3dglMesh& mesh : m_meshes)
-		if (m_pProgram)
-			mesh.create(*ppMesh++, attribId);
-		else
-			mesh.create(*ppMesh++);
+		mesh.create(*ppMesh++, attrId, attrNum);
 
 	m_globInvT = glm::inverse(glm::transpose(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation)));
 }
@@ -163,12 +162,15 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 			
 			GLint* pLoadSignature = m_pProgram->getShaderSignature();
 			GLint* pRenderSignature = pProgram->getShaderSignature();
-			if (std::equal(pLoadSignature, pLoadSignature + ATTR_LAST, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
+			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
+			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
+			size_t nLen = glm::min(nLoadLen, nRenderLen);
+			if (std::equal(pLoadSignature, pLoadSignature + nLen, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
 				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
 			else
 			{
 				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
-				for (unsigned i = 0; i < ATTR_LAST; i++)
+				for (unsigned i = 0; i < nLen; i++)
 					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
 						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
 					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)
