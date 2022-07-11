@@ -11,13 +11,10 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 using namespace _3dgl;
 
-C3dglSkyBox::C3dglSkyBox()
+C3dglSkyBox::C3dglSkyBox() : m_id{0, 0, 0}
 {
 	m_idVAO = 0;
 	std::fill(m_idTex, m_idTex + 6, 0);
-	m_vertexBuffer = (GLuint)-1;
-	m_normalBuffer = (GLuint)-1;
-	m_texCoordBuffer = (GLuint)-1;
 }
 
 bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn) 
@@ -59,7 +56,7 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 		0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0			//Bottom
 	};
 
-	float textCoord[] = 
+	float texCoords[] = 
 	{
 		0.0f, 0.0f,		1.0f, 0.0f,		1.0f, 1.0f,		0.0f, 1.0f,		//Back
 		1.0f, 0.0f,		1.0f, 1.0f,		0.0f, 1.0f,		0.0f, 0.0f,		//Left
@@ -69,45 +66,63 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 		0.0f, 0.0f,		1.0f, 0.0f,		1.0f, 1.0f,		0.0f, 1.0f		//Bottom
 	};
 
+	float* attrData[] = { vertices, normals,  texCoords };
+	size_t attrSize[] = { 3 * sizeof(float), 3 * sizeof(float), 2 * sizeof(float) };
+	size_t nVertices = 24;
+
+
 	// create VAO
 	glGenVertexArrays(1, &m_idVAO);
 	glBindVertexArray(m_idVAO);
 
-	glGenBuffers(1, &m_vertexBuffer); //Generate a buffer for the vertices
-	glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer); //Bind the vertex buffer
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW); //Send the data to OpenGL
-
-	glGenBuffers(1, &m_normalBuffer); //Generate a buffer for the normals
-	glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer); //Bind the normal buffer
-	glBufferData(GL_ARRAY_BUFFER, sizeof(normals), &normals[0], GL_STATIC_DRAW); //Send the data to OpenGL
-
-	glGenBuffers(1, &m_texCoordBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer); //Bind the tex coord buffer
-	glBufferData(GL_ARRAY_BUFFER, sizeof(textCoord), &textCoord[0], GL_STATIC_DRAW); //Send the data to OpenGL
-
-
-	// check if a shading program is active
+	// Find the Current Program
 	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
-	if (!pProgram) return false;
 
-	// get shader configuration
-	GLint attribVertex = pProgram->getAttribLocation(ATTR_VERTEX);
-	GLint attribNormal = pProgram->getAttribLocation(ATTR_NORMAL);
-	GLint attribTexCoord = pProgram->getAttribLocation(ATTR_TEXCOORD);
-	GLuint locationMatrixModelView = pProgram->getUniformLocation(UNI_MODELVIEW);
+	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
+	GLint* attrId = NULL;
+	if (pProgram)
+	{
+		attrId = pProgram->getShaderSignature();
 
-	glEnableVertexAttribArray(attribVertex);
-	glEnableVertexAttribArray(attribNormal);
-	glEnableVertexAttribArray(attribTexCoord);
+		// Generate warnings
+		if (attrId[ATTR_VERTEX] == -1)
+			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
+		if (attrId[ATTR_TEXCOORD] == -1)
+			log(M3DGL_WARNING_TEXCOORDS_COORDS_NOT_IMPLEMENTED);
+	}
+	else
+	{
+		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
+		static GLint a[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY, -1, -1, -1, -1, -1 };
+		attrId = a;
+	}
+	
+	// generate attribute buffers, then bind them and send data to OpenGL
+	for (unsigned attr = ATTR_VERTEX; attr < c_attrCount; attr++)
+		if (attrId[attr] != -1)
+		{
+			glGenBuffers(1, &m_id[attr]);
+			glBindBuffer(GL_ARRAY_BUFFER, m_id[attr]);
+			glBufferData(GL_ARRAY_BUFFER, attrSize[attr] * nVertices, attrData[attr], GL_STATIC_DRAW);
 
-	glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer);
-	glVertexAttribPointer(attribVertex, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, m_normalBuffer);
-	glVertexAttribPointer(attribNormal, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, m_texCoordBuffer);
-	glVertexAttribPointer(attribTexCoord, 2, GL_FLOAT, GL_FALSE, 0, 0);
+			if (pProgram)
+			{
+				glEnableVertexAttribArray(attrId[attr]);
+				static GLint attribMult[] = { 3, 3, 2 };
+				glVertexAttribPointer(attrId[attr], attribMult[attr], GL_FLOAT, GL_FALSE, 0, 0);
+			}
+			else
+			{
+				static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
+				glEnableClientState(fixedAttr[attr]);
+				switch (attr)
+				{
+				case ATTR_VERTEX: glVertexPointer(3, GL_FLOAT, 0, 0); break;
+				case ATTR_NORMAL: glNormalPointer(GL_FLOAT, 0, 0); break;
+				case ATTR_TEXCOORD: glTexCoordPointer(2, GL_FLOAT, 0, 0); break;
+				}
+			}
+		}
 
 	// Reset VAO & buffers
 	glBindVertexArray(0);
@@ -119,12 +134,24 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 
 void C3dglSkyBox::render(glm::mat4 matrix)
 {
-	C3dglProgram *pProgram = C3dglProgram::getCurrentProgram();
-	if (!pProgram) return;
-
 	// send model view matrix
 	matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
-	pProgram->sendUniform(UNI_MODELVIEW, matrix);
+
+	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
+	if (pProgram)
+	{
+		pProgram->sendUniform(UNI_MODELVIEW, matrix);
+		if (pProgram->getAttribLocation(ATTR_VERTEX) == -1)
+			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
+		if (pProgram->getAttribLocation(ATTR_TEXCOORD) == -1)
+			log(M3DGL_WARNING_TEXCOORDS_COORDS_NOT_IMPLEMENTED);
+	}
+	else
+	{
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		glMultMatrixf((GLfloat*)&matrix);
+	}
 
 	// disable depth-buffer write cycles - so that the skybox cannot obscure anything
 	GLboolean bDepthMask;

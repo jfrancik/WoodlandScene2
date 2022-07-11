@@ -31,22 +31,24 @@ freely, subject to the following restrictions:
 
 namespace _3dgl
 {
-    class MY3DGL_API C3dglSkyBox
+    class MY3DGL_API C3dglSkyBox : public C3dglObject
     {
         // VAO (Vertex Array Object) id
         GLuint m_idVAO;
 
         unsigned int  m_idTex[6];
 
-        GLuint m_vertexBuffer;
-        GLuint m_normalBuffer;
-        GLuint m_texCoordBuffer;
+        // Attribute Buffer Ids
+        static const size_t c_attrCount = ATTR_TEXCOORD + 1;
+        GLuint m_id[c_attrCount];
 
     public:
         C3dglSkyBox();
 
 	    bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn);
 	    void render(glm::mat4 matrix);
+
+        std::string getName() const { return "SkyBox"; }
     };
 }
 #endif

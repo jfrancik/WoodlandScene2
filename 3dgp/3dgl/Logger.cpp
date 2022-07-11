@@ -37,6 +37,7 @@ C3dglLogger::C3dglLogger()
 	operator[](M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE) = "failed to detect a programmable pipeline. Are you trying to load a model before initialisaing a shader program?";
 	operator[](M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED) = "is providing vertex coordinates but vertex buffer is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED) = "is providing normal coordinates but normal buffer is not implemented in the current shader program. Consider another shader program.";
+	operator[](M3DGL_WARNING_TEXCOORDS_COORDS_NOT_IMPLEMENTED) = "requires texture implementation but it is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED) = "implements bone ids but bone weights are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED) = "implements bone weights but bone ids are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_SKINNING_NOT_IMPLEMENTED) = "comes with animations but skinning is not implemented.";
