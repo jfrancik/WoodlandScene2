@@ -35,7 +35,7 @@ freely, subject to the following restrictions:
 #include "../glm/glm.hpp"
 
 // Include 3DGL API import/export settings
-#include "3dglapi.h"
+#include "Object.h"
 
 // standard libraries
 #include <vector>
@@ -48,7 +48,7 @@ namespace _3dgl
 {
 	class C3dglModel;
 
-	class MY3DGL_API C3dglAnimation
+	class MY3DGL_API C3dglAnimation : public C3dglObject
 	{
 	private:
 		// Owner
@@ -68,11 +68,11 @@ namespace _3dgl
 
 		void create(const aiAnimation* pAnim, const aiNode* pRootNode);
 
-		std::string getName();
-		double getDuration();
-		double getTicksPerSecond();
+		std::string getName() const;
+		double getDuration() const;
+		double getTicksPerSecond() const;
 
-		void readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT = glm::mat4(1));
+		void readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT = glm::mat4(1)) const;
 	};
 }
 

@@ -130,7 +130,7 @@ bool C3dglShader::loadFromFile(std::string fname)
 	return load(source);
 }
 
-bool C3dglShader::compile()
+bool C3dglShader::compile() const
 {
 	if (m_id == 0) return log(M3DGL_ERROR_WRONG_SHADER);
 
@@ -357,7 +357,7 @@ bool C3dglProgram::use(bool bValidate)
 	return log(M3DGL_SUCCESS_VERIFICATION, (info.size() <= 1 ? "OK" : std::string(info.begin(), info.end())));
 }
 
-GLint C3dglProgram::getAttribLocation(std::string idAttrib)
+GLint C3dglProgram::getAttribLocation(std::string idAttrib) const
 {
 	auto i = m_attribs.find(idAttrib);
 	if (i == m_attribs.end())
@@ -370,7 +370,7 @@ GLint C3dglProgram::getAttribLocation(std::string idAttrib)
 		return i->second;
 }
 
-GLint C3dglProgram::getUniformLocation(std::string idUniform) 
+GLint C3dglProgram::getUniformLocation(std::string idUniform) const
 { 
 	GLint location; 
 	GLenum type; 
@@ -378,7 +378,7 @@ GLint C3dglProgram::getUniformLocation(std::string idUniform)
 	return location; 
 }
 
-GLint C3dglProgram::getUniformLocation(UNI_STD uniId) 
+GLint C3dglProgram::getUniformLocation(UNI_STD uniId) const
 { 
 	if (uniId < 0 || uniId >= UNI_LAST)
 	{
@@ -388,7 +388,7 @@ GLint C3dglProgram::getUniformLocation(UNI_STD uniId)
 	return m_stdUni[uniId]; 
 }
 
-void C3dglProgram::getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type)
+void C3dglProgram::getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type) const
 {
 	auto i = m_uniforms.find(idUniform);
 	

@@ -200,12 +200,20 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 	if (m_heights)
 		destroy();
 
+	// Terrain-specific preparation
+	createHeightMap(nSizeX, nSizeZ, fScaleHeight, pBytes);
+
+	// Prepare Attributes - and pack them into temporary buffers
+	float* attrData[c_attrCount];
+	size_t attrSize[c_attrCount];
+	size_t nVertices = getBuffers(attrData, attrSize, c_attrCount);
+
 	// Find the Current Program
 	m_pProgram = C3dglProgram::getCurrentProgram();
 	m_pLastProgramUsed = NULL;
 
 	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	GLint* attrId = NULL;
+	const GLint* attrId = NULL;
 	if (m_pProgram)
 	{
 		attrId = m_pProgram->getShaderSignature();
@@ -226,13 +234,6 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 	// create VAO
 	glGenVertexArrays(1, &m_idVAO);
 	glBindVertexArray(m_idVAO);
-
-	createHeightMap(nSizeX, nSizeZ, fScaleHeight, pBytes);
-
-	// Prepare Attributes - and pack them into temporary buffers
-	float* attrData[c_attrCount];
-	size_t attrSize[c_attrCount];
-	size_t nVertices = getBuffers(attrData, attrSize, c_attrCount);
 
 	// generate VBO's and enable attrinuttes in VAO
 	for (size_t attr = ATTR_VERTEX; attr < c_attrCount; attr++)
@@ -300,8 +301,8 @@ void C3dglTerrain::render(glm::mat4 matrix)
 		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
 		{
 
-			GLint* pLoadSignature = m_pProgram->getShaderSignature();
-			GLint* pRenderSignature = pProgram->getShaderSignature();
+			const GLint* pLoadSignature = m_pProgram->getShaderSignature();
+			const GLint* pRenderSignature = pProgram->getShaderSignature();
 			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
 			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
 			size_t nLen = glm::min(nLoadLen, nRenderLen);

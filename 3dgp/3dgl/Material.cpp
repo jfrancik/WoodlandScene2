@@ -68,7 +68,7 @@ void C3dglMaterial::destroy()
 			glDeleteTextures(1, &idTexture);
 }
 
-void C3dglMaterial::render(C3dglProgram *pProgram)
+void C3dglMaterial::render(C3dglProgram *pProgram) const
 {
 	for (unsigned texUnit = GL_TEXTURE0; texUnit <= GL_TEXTURE31; texUnit++)
 	{
@@ -92,7 +92,7 @@ void C3dglMaterial::render(C3dglProgram *pProgram)
 void C3dglMaterial::loadTexture(GLenum texUnit, std::string strDefTexPath, std::string strPath)
 {
 	// first of all, check for the embedded texture!
-	const aiTexture *pTexture = m_pOwner ? m_pOwner->GetScene()->GetEmbeddedTexture(strPath.c_str()) : NULL;
+	const aiTexture *pTexture = m_pOwner ? m_pOwner->getScene()->GetEmbeddedTexture(strPath.c_str()) : NULL;
 	if (pTexture)
 		loadTexture(texUnit, pTexture);
 	else

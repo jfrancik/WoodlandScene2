@@ -54,9 +54,9 @@ public:
 	bool load(const aiTexture* pTexture, unsigned format);
 	void destroy();
 
-	long getWidth()					{ return m_idImage ? m_width : 0;  }
-	long getHeight()				{ return m_idImage ? m_height : 0; }
-	void *getBits()					{ return m_idImage ? m_pBits : NULL; }
+	long getWidth()	const			{ return m_idImage ? m_width : 0;  }
+	long getHeight() const			{ return m_idImage ? m_height : 0; }
+	void *getBits()	const			{ return m_idImage ? m_pBits : NULL; }
 
 	std::string getName() const		{ return "Texture"; }
 };

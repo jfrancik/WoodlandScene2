@@ -28,7 +28,7 @@ C3dglMesh::C3dglMesh(C3dglModel* pOwner) : m_pOwner(pOwner), m_pMesh(NULL), m_aa
 	m_matIndex = 0;
 }
 
-size_t C3dglMesh::getBuffers(const aiMesh* pMesh, GLint* attrId, void** attrData, size_t* attrSize, size_t attrCount) const
+size_t C3dglMesh::getBuffers(const aiMesh* pMesh, const GLint* attrId, void** attrData, size_t* attrSize, size_t attrCount) const
 {
 	std::fill(attrData, attrData + attrCount, (void*)NULL);
 	std::fill(attrSize, attrSize + attrCount, 0);
@@ -157,7 +157,7 @@ void C3dglMesh::getBoundingVolume(const aiMesh* pMesh, size_t nVertices, glm::ve
 	}
 }
 
-void C3dglMesh::create(const aiMesh* pMesh, GLint* attrId, size_t attrCount)
+void C3dglMesh::create(const aiMesh* pMesh, const GLint* attrId, size_t attrCount)
 {
 	if (!pMesh) return;
 	if (attrCount > c_attrCount)
@@ -186,7 +186,7 @@ void C3dglMesh::create(const aiMesh* pMesh, GLint* attrId, size_t attrCount)
 	m_name = pMesh->mName.data;
 }
 
-void C3dglMesh::create(GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize)
+void C3dglMesh::create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize)
 {
 	m_nVertices = nVertices;
 	m_nIndices = nIndices;
@@ -237,11 +237,60 @@ void C3dglMesh::create(GLint* attrId, size_t attrCount, size_t nVertices, size_t
 }
 
 
-void C3dglMesh::render()
+void C3dglMesh::render() const
 {
 	glBindVertexArray(m_idVAO);
-	glDrawElements(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0);
+	if (m_instances == 1)
+		glDrawElements(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0);
+	else
+		glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0, (GLsizei)m_instances);
 	glBindVertexArray(0);
+}
+
+GLuint C3dglMesh::setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor, GLenum usage)
+{
+	m_instances = instances;
+	m_divisor = divisor;
+
+	if (stride == 0)
+		switch (type)
+		{
+		case GL_FLOAT: stride = size * sizeof(float); break;
+		case GL_INT:
+		case GL_UNSIGNED_INT: stride = size * sizeof(float); break;
+		}
+
+	glBindVertexArray(m_idVAO);
+
+	GLuint bufferId;
+
+	glGenBuffers(1, &bufferId);
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+	glBufferData(GL_ARRAY_BUFFER, instances * stride, data, usage);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, 0);
+	glVertexAttribDivisor(attrLocation, divisor);
+
+	// Reset VAO & buffers
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return bufferId;
+}
+
+void C3dglMesh::addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset)
+{
+	glBindVertexArray(m_idVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, reinterpret_cast<void*>(offset));
+	glVertexAttribDivisor(attrLocation, m_divisor);
+
+	// Reset VAO & buffers
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void C3dglMesh::destroy()
@@ -253,7 +302,7 @@ void C3dglMesh::destroy()
 	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
 }
 
-size_t C3dglMesh::getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize)
+size_t C3dglMesh::getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize) const
 {
 	*ppData = NULL;
 	*indSize = NULL;
@@ -263,13 +312,13 @@ size_t C3dglMesh::getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSi
 	attrId[attr] = 1;
 	void* attrData[c_attrCount];
 	size_t attrSize[c_attrCount];
-	m_nVertices = getBuffers(m_pMesh, attrId, attrData, attrSize, c_attrCount);
+	size_t nVertices = getBuffers(m_pMesh, attrId, attrData, attrSize, c_attrCount);
 	*ppData = attrData[attr];
 	*indSize = attrSize[attr];
-	return m_nVertices;
+	return nVertices;
 }
 
-size_t C3dglMesh::getIndexData(void** ppData, size_t* indSize)
+size_t C3dglMesh::getIndexData(void** ppData, size_t* indSize) const
 {
 	*ppData = NULL;
 	*indSize = NULL;
@@ -278,7 +327,7 @@ size_t C3dglMesh::getIndexData(void** ppData, size_t* indSize)
 	return getIndexBuffer(m_pMesh, ppData, indSize);
 }
 
-C3dglMaterial* C3dglMesh::getMaterial()
+C3dglMaterial* C3dglMesh::getMaterial() const
 {
 	return m_pOwner ? m_pOwner->getMaterial(m_matIndex) : NULL;
 }

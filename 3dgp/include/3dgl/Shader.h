@@ -65,12 +65,12 @@ namespace _3dgl
 		bool create(GLenum type);
 		bool load(std::string source);
 		bool loadFromFile(std::string fname);
-		bool compile();
+		bool compile() const;
 
-		GLenum getType()		{ return m_type; }
-		GLuint getId()			{ return m_id; }
-		std::string getSource()	{ return m_source; }
-		std::string getFName()	{ return m_fname; }
+		GLenum getType() const			{ return m_type; }
+		GLuint getId()  const			{ return m_id; }
+		std::string getSource()  const	{ return m_source; }
+		std::string getFName()  const	{ return m_fname; }
 		std::string getName() const;	// "Vertex Shader", "Fragment Shader" etc
 	};
 
@@ -90,8 +90,8 @@ namespace _3dgl
 		// Maps of Shader Objects
 #pragma warning(push)
 #pragma warning(disable: 4251)
-		std::map<std::string, GLint> m_attribs;			// map of attributes: name => attribute locaion 
-		std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
+		mutable std::map<std::string, GLint> m_attribs;			// map of attributes: name => attribute locaion 
+		mutable std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
 #pragma warning(pop)
 
 		size_t m_stdAttrNum = ATTR_LAST;				// number of standard attributes (8)
@@ -106,24 +106,24 @@ namespace _3dgl
 		bool link(std::string std_attrib_names = "", std::string std_uni_names = "");
 		bool use(bool bValidate = false);
 
-		GLuint getId()			{ return m_id; }
-		bool isUsed()			{ return c_pCurrentProgram == this; }
+		GLuint getId() const			{ return m_id; }
+		bool isUsed() const				{ return c_pCurrentProgram == this; }
 
-		static C3dglProgram *getCurrentProgram()		{ return c_pCurrentProgram; }
+		static C3dglProgram *getCurrentProgram()			{ return c_pCurrentProgram; }
 
 		// numerical locations for attributes
-		GLint getAttribLocation(std::string idUniform);
-		GLint getAttribLocation(ATTRIB_STD attr)								{ return m_stdAttr[attr]; }
+		GLint getAttribLocation(std::string idUniform) const;
+		GLint getAttribLocation(ATTRIB_STD attr) const		{ return m_stdAttr[attr]; }
 
 		// shader "signature" - array of all standard attribute locations which defines the shader program functionality
-		GLint* getShaderSignature() { return m_stdAttr; }
-		size_t getShaderSignatureLength() { return m_stdAttrNum; }
+		const GLint* getShaderSignature() const				{ return m_stdAttr; }
+		size_t getShaderSignatureLength() const				{ return m_stdAttrNum; }
 
 		// numerical locations and types for attribute and uniform names
-		GLint getUniformLocation(std::string idUniform);
-		GLint getUniformLocation(UNI_STD uniId);
+		GLint getUniformLocation(std::string idUniform) const;
+		GLint getUniformLocation(UNI_STD uniId) const;
 
-		void getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type);
+		void getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type) const;
 
 		// Send Uniform functions
 

@@ -65,7 +65,7 @@ void C3dglModel::create(const aiScene* pScene)
 	m_pLastProgramUsed = NULL;
 
 	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	GLint *attrId = NULL;
+	const GLint *attrId = NULL;
 	size_t attrNum = 0;
 	if (m_pProgram)
 	{
@@ -127,7 +127,7 @@ unsigned C3dglModel::loadAnimations(C3dglModel* pCompatibleModel)
 	m_animations.resize(pScene->mNumAnimations, C3dglAnimation(this));
 	aiAnimation** ppAnimation = pScene->mAnimations;
 	for (C3dglAnimation& animation : m_animations)
-		animation.create(*ppAnimation++, GetScene()->mRootNode);
+		animation.create(*ppAnimation++, getScene()->mRootNode);
 	
 	return pScene->mNumAnimations;
 }
@@ -145,7 +145,7 @@ void C3dglModel::destroy()
 	}
 }
 
-void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
+void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m) const
 {
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
@@ -160,8 +160,8 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
 		{
 			
-			GLint* pLoadSignature = m_pProgram->getShaderSignature();
-			GLint* pRenderSignature = pProgram->getShaderSignature();
+			const GLint* pLoadSignature = m_pProgram->getShaderSignature();
+			const GLint* pRenderSignature = pProgram->getShaderSignature();
 			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
 			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
 			size_t nLen = glm::min(nLoadLen, nRenderLen);
@@ -191,8 +191,8 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 
 	for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
-		C3dglMesh* pMesh = &m_meshes[iMesh];
-		C3dglMaterial* pMaterial = pMesh->getMaterial();
+		const C3dglMesh* pMesh = &m_meshes[iMesh];
+		const C3dglMaterial* pMaterial = pMesh->getMaterial();
 		if (pMaterial)
 			pMaterial->render(pProgram);
 		pMesh->render();
@@ -203,13 +203,13 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m)
 		renderNode(p, m);
 }
 
-void C3dglModel::render(glm::mat4 matrix) 
+void C3dglModel::render(glm::mat4 matrix) const
 { 
 	if (m_pScene->mRootNode) 
 		renderNode(m_pScene->mRootNode, matrix);
 }
 
-void C3dglModel::render(unsigned iNode, glm::mat4 matrix)
+void C3dglModel::render(unsigned iNode, glm::mat4 matrix) const
 {
 	// update transform
 	matrix *= glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation));
@@ -218,13 +218,25 @@ void C3dglModel::render(unsigned iNode, glm::mat4 matrix)
 		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix);
 }
 
-unsigned C3dglModel::getMainNodeCount() 
+unsigned C3dglModel::getMainNodeCount() const
 { 
 	return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; 
 }
 
+void C3dglModel::setupInstancingData(GLint attrLocation, size_t instances, GLint size, float* data, GLuint divisor)
+{
+	for (int i = 0; i < getMeshCount(); i++)
+		getMesh(i)->setupInstancingData(attrLocation, instances, size, GL_FLOAT, size * sizeof(float), data, divisor);
+}
 
-void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecursive)
+void C3dglModel::setupInstancingData(GLint attrLocation, size_t instances, GLint size, int* data, GLuint divisor)
+{
+	for (int i = 0; i < getMeshCount(); i++)
+		getMesh(i)->setupInstancingData(attrLocation, instances, size, GL_INT, size * sizeof(int), data, divisor);
+}
+
+
+void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecursive) const
 {
 	aiMatrix4x4 m1, m2;
 	if (bRecursive && pNode->mParent)
@@ -236,7 +248,7 @@ void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecurs
 	*((aiMatrix4x4*)pMatrix) = m2 * m1;
 }
 
-size_t C3dglModel::getBoneId(std::string boneName)
+size_t C3dglModel::getBoneId(std::string boneName) const
 {
 	auto it = m_mapBones.find(boneName);
 	if (it != m_mapBones.end())
@@ -259,7 +271,7 @@ size_t C3dglModel::getOrAddBone(std::string boneName, glm::mat4 offsetMatrix)
 	}
 }
 
-void C3dglModel::getAABB(glm::vec3 BB[2]) 
+void C3dglModel::getAABB(glm::vec3 BB[2]) const
 { 
 	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
 	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
@@ -267,7 +279,7 @@ void C3dglModel::getAABB(glm::vec3 BB[2])
 		getAABB(m_pScene->mRootNode, BB); 
 }
 
-void C3dglModel::getAABB(unsigned iNode, glm::vec3 BB[2])
+void C3dglModel::getAABB(unsigned iNode, glm::vec3 BB[2]) const
 {
 	BB[0] = glm::vec3(1e10f, 1e10f, 1e10f);
 	BB[1] = glm::vec3(-1e10f, -1e10f, -1e10f);
@@ -276,7 +288,7 @@ void C3dglModel::getAABB(unsigned iNode, glm::vec3 BB[2])
 		getAABB(m_pScene->mRootNode->mChildren[iNode], BB, glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation)));
 }
 
-void C3dglModel::getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
+void C3dglModel::getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m) const
 {
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
@@ -312,7 +324,7 @@ void C3dglModel::getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m)
 //////////////////////////////////////////////////////////////////////////////////////
 // Articulated Animation Functions
 
-void C3dglModel::getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>& transforms)
+void C3dglModel::getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>& transforms) const
 {
 	transforms.resize(getBoneCount());	// 16 floats per bone matrix
 	if (!hasAnimation(iAnim))
@@ -328,11 +340,11 @@ void C3dglModel::getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>&
 		if (fTicksPerSecond == 0) fTicksPerSecond = 25.0f;
 		time = fmod(time * fTicksPerSecond, (float)getAnimation(iAnim)->getDuration());
 
-		m_animations[iAnim].readNodeHierarchy(time, GetScene()->mRootNode, transforms);
+		m_animations[iAnim].readNodeHierarchy(time, getScene()->mRootNode, transforms);
 	}
 }
 
-void C3dglModel::stats(unsigned level)
+void C3dglModel::stats(unsigned level) const
 {
 	// prep: count nodes
 	unsigned nNodes = 0;

@@ -20,17 +20,17 @@ C3dglAnimation::C3dglAnimation(C3dglModel* pOwner) : m_pOwner(pOwner), m_pAnim(N
 {
 }
 
-std::string C3dglAnimation::getName() 
+std::string C3dglAnimation::getName() const
 { 
 	return m_pAnim->mName.data; 
 }
 
-double C3dglAnimation::getDuration() 
+double C3dglAnimation::getDuration() const
 { 
 	return m_pAnim->mDuration; 
 }
 
-double C3dglAnimation::getTicksPerSecond() 
+double C3dglAnimation::getTicksPerSecond() const 
 { 
 	return m_pAnim->mTicksPerSecond; 
 }
@@ -125,7 +125,7 @@ static aiMatrix4x4 Interpolate(float AnimationTime, const aiNodeAnim* pNodeAnim)
 }
 
 
-void C3dglAnimation::readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT)
+void C3dglAnimation::readNodeHierarchy(float time, const aiNode* pNode, std::vector<glm::mat4>& transforms, const glm::mat4 parentT) const
 {
 	glm::mat4 transform = parentT * glm::transpose(glm::make_mat4((float*)&pNode->mTransformation));
 

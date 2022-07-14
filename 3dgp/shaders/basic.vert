@@ -6,6 +6,7 @@
 uniform mat4 matrixProjection;
 uniform mat4 matrixView;
 uniform mat4 matrixModelView;
+uniform mat4 matrixInvView;
 
 // Uniforms: Material Colours
 uniform vec3 materialAmbient;
@@ -18,6 +19,9 @@ uniform float fogDensity = 0.02;
 #define MAX_BONES 100
 uniform mat4 bones[MAX_BONES];
 
+// Instancing
+uniform bool instancing = false;
+
 in vec3 aVertex;
 in vec3 aNormal;
 in vec2 aTexCoord;
@@ -25,6 +29,7 @@ in vec3 aTangent;
 in vec3 aBiTangent;
 in ivec4 aBoneId;		// Bone Ids
 in  vec4 aBoneWeight;	// Bone Weights
+in vec3 aOffset;
 
 out vec4 color;
 out vec4 position;
@@ -32,6 +37,17 @@ out vec3 normal;
 out vec2 texCoord0;
 out float fogFactor;
 out mat3 matrixTangent;
+
+mat4 rotationMatrix(vec3 axis, float angle)
+{
+    float s = sin(angle);
+    float c = cos(angle);
+    
+    return mat4(c, 0, s, 0,
+                0, 1, 0, 0,
+               -s, 0, c, 0,
+                0, 0, 0, 1);
+}
 
 void main(void) 
 {
@@ -46,6 +62,10 @@ void main(void)
 
 	// calculate position
 	position = matrixModelView * matrixBone * vec4(aVertex, 1.0);
+
+	if (instancing)
+		position = matrixView * (matrixInvView * position + vec4(aOffset, 0));
+
 	gl_Position = matrixProjection * position;
 
 	// calculate normal

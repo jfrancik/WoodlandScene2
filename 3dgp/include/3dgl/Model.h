@@ -78,13 +78,13 @@ namespace _3dgl
 
 		// shader-related data
 		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL if fixed pipeline or no model loaded
-		C3dglProgram* m_pLastProgramUsed;			// the last program used for rendering; NULL if never rendered since loading the model
+		mutable C3dglProgram* m_pLastProgramUsed;	// the last program used for rendering; NULL if never rendered since loading the model
 
 	public:
 		C3dglModel();
 		~C3dglModel() { destroy(); }
 
-		const aiScene* GetScene() { return m_pScene; }
+		const aiScene* getScene() const { return m_pScene; }
 
 		// Loading
 		// load a model from file
@@ -102,67 +102,71 @@ namespace _3dgl
 
 		// Controls some quirky behaviour in AssImp FBX importer. By default set to false (disable preserve pivots mode)
 		// Can be changed to true in case the model doesn't appear right. Note: this flag should be set before calling load funcion!
-		bool getFBXImportPreservePivotsFlag()		 { return m_bFBXImportPreservePivots; }
+		bool getFBXImportPreservePivotsFlag() const	 { return m_bFBXImportPreservePivots; }
 		void setFBXImportPreservePivotsFlag(bool b)	 { m_bFBXImportPreservePivots = b; }
 
 		// Rendering
 		// render the entire model
-		void render(glm::mat4 matrix);
+		void render(glm::mat4 matrix) const;
 		// render one of the main nodes - see getMainNodeCount below
-		void render(unsigned iNode, glm::mat4 matrix);
+		void render(unsigned iNode, glm::mat4 matrix) const;
 		// render a single node
-		void renderNode(aiNode* pNode, glm::mat4 m);
+		void renderNode(aiNode* pNode, glm::mat4 m) const;
 		// returns the count of main nodes
-		unsigned getMainNodeCount();
+		unsigned getMainNodeCount() const;
+
+		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
+		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, float* data, GLuint divisor = 1);
+		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, int* data, GLuint divisor = 1);
 
 		// Mesh functions
-		bool hasMeshes()						{ return m_meshes.size() > 0; }
-		size_t getMeshCount()					{ return m_meshes.size(); }
-		C3dglMesh *getMesh(size_t i)			{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
-		size_t getMeshIndex(const C3dglMesh* p)	{ return p - &m_meshes[0]; }
-		size_t createNewMesh()					{ size_t nIndex = m_meshes.size(); m_meshes.push_back(C3dglMesh(this)); return nIndex; }
+		bool hasMeshes() const						{ return m_meshes.size() > 0; }
+		size_t getMeshCount() const					{ return m_meshes.size(); }
+		C3dglMesh *getMesh(size_t i)				{ return (i < m_meshes.size()) ? &m_meshes[i] : NULL; }
+		size_t getMeshIndex(const C3dglMesh* p) const { return p - &m_meshes[0]; }
+		size_t createNewMesh()						{ size_t nIndex = m_meshes.size(); m_meshes.push_back(C3dglMesh(this)); return nIndex; }
 
 		// Material functions
-		bool hasMaterials() { return m_materials.size() > 0; }
-		size_t getMaterialCount()				{ return m_materials.size(); }
-		C3dglMaterial *getMaterial(size_t i)	{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
-		size_t getMaterialIndex(C3dglMaterial* p) { return p - &m_materials[0]; }
-		size_t createNewMaterial()				{ size_t nIndex = m_materials.size(); m_materials.push_back(C3dglMaterial(this)); return nIndex; }
+		bool hasMaterials() const					{ return m_materials.size() > 0; }
+		size_t getMaterialCount() const				{ return m_materials.size(); }
+		C3dglMaterial *getMaterial(size_t i)		{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
+		size_t getMaterialIndex(C3dglMaterial* p) const { return p - &m_materials[0]; }
+		size_t createNewMaterial()					{ size_t nIndex = m_materials.size(); m_materials.push_back(C3dglMaterial(this)); return nIndex; }
 
 		// Animation functions
-		bool hasAnimations()					{ return m_animations.size() > 0; }
-		size_t getAnimationCount()				{ return m_animations.size(); }
-		bool hasAnimation(unsigned iAnim)		{ return iAnim < getAnimationCount(); }
-		C3dglAnimation* getAnimation(size_t i)	{ return (i < m_animations.size()) ? &m_animations[i] : NULL; }
-		size_t getAnimationIndex(C3dglAnimation* p) { return p - &m_animations[0]; }
+		bool hasAnimations()  const					{ return m_animations.size() > 0; }
+		size_t getAnimationCount()  const			{ return m_animations.size(); }
+		bool hasAnimation(unsigned iAnim)  const	{ return iAnim < getAnimationCount(); }
+		const C3dglAnimation* getAnimation(size_t i) const	{ return (i < m_animations.size()) ? &m_animations[i] : NULL; }
+		size_t getAnimationIndex(C3dglAnimation* p) const	{ return p - &m_animations[0]; }
 
 		// retrieve bone transformations for the given time point. The vector transforms will be cleared and resized to reflect the actual number of bones
-		void getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>& transforms);
+		void getAnimData(unsigned iAnim, float time, std::vector<glm::mat4>& transforms) const;
 
 		// Advanced functions
 		// retrieves the transform associated with the given node. If (bRecursive) the transform is recursively combined with parental transform(s)
-		void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true);
+		void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true) const;
 	
 		// Bone system functions
-		bool hasBones()							{ return m_vecBones.size() > 0; }		// true if any bones found in the model
-		size_t getBoneCount()					{ return m_vecBones.size(); }			// returns the bone count
-		bool hasBone(size_t id)					{ return id < getBoneCount(); }			// true if bone exists in the model
-		bool hasBone(std::string boneName)		{ return m_mapBones.find(boneName) != m_mapBones.end(); }		// true if bone exists in the model
-		std::string getBoneName(size_t id)		{ return hasBone(id) ? m_vecBones[id].first : ""; }				// name of the bone
-		glm::mat4 getBone(size_t id)			{ return hasBone(id) ? m_vecBones[id].second : glm::mat4(1); }	// bone matrix
-		size_t getBoneId(std::string boneName);								// returns bone id, (size_t)-1 if bone name unknown
+		bool hasBones() const						{ return m_vecBones.size() > 0; }		// true if any bones found in the model
+		size_t getBoneCount() const					{ return m_vecBones.size(); }			// returns the bone count
+		bool hasBone(size_t id) const				{ return id < getBoneCount(); }			// true if bone exists in the model
+		bool hasBone(std::string boneName) const	{ return m_mapBones.find(boneName) != m_mapBones.end(); }		// true if bone exists in the model
+		std::string getBoneName(size_t id) const	{ return hasBone(id) ? m_vecBones[id].first : ""; }				// name of the bone
+		glm::mat4 getBone(size_t id) const			{ return hasBone(id) ? m_vecBones[id].second : glm::mat4(1); }	// bone matrix
+		size_t getBoneId(std::string boneName) const;						// returns bone id, (size_t)-1 if bone name unknown
 		size_t getOrAddBone(std::string boneName, glm::mat4 offsetMatrix);	// as above, creates a new bone if bone name unknown yet
-		glm::mat4 getGlobalInvT()				{ return m_globInvT; }
+		glm::mat4 getGlobalInvT() const				{ return m_globInvT; }
 
 		// Bounding Box Functions
 		// BB for the entire model
-		void getAABB(glm::vec3 BB[2]);
+		void getAABB(glm::vec3 BB[2]) const;
 		// BB for one of the main nodes - see getMainNodeCount function
-		void getAABB(unsigned iNode, glm::vec3 BB[2]);
+		void getAABB(unsigned iNode, glm::vec3 BB[2]) const;
 		// BB for a single node (low-level, mostly for internal use)
-		void getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m = glm::mat4(1));
+		void getAABB(aiNode* pNode, glm::vec3 BB[2], glm::mat4 m = glm::mat4(1)) const;
 
-		void stats(unsigned level = 0);
+		void stats(unsigned level = 0) const;
 
 		std::string getName() const { return m_name; } // "Model (" + m_name + ")";
 	};

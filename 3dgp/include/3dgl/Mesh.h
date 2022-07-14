@@ -70,9 +70,13 @@ namespace _3dgl
 		
 		// Bounding Volume (experimental feature)
 		glm::vec3 m_aabb[2];
-	
+
+		// Instancing values
+		size_t m_instances = 1;
+		GLuint m_divisor = 1;
+
 	protected:
-		size_t getBuffers(const aiMesh* pMesh, GLint *attrId, void** attrData, size_t* attrSize, size_t attrCount) const;
+		size_t getBuffers(const aiMesh* pMesh, const GLint *attrId, void** attrData, size_t* attrSize, size_t attrCount) const;
 		size_t getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t *indSize) const;
 		void cleanUp(void** attrData, void *indexData, size_t attrCount) const;		// call after getBuffers well data no longer required
 		void getBoundingVolume(const aiMesh* pMesh, size_t nVertices, glm::vec3& aabb0, glm::vec3& aabb1) const;
@@ -83,11 +87,15 @@ namespace _3dgl
 
 		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
 		// For fixed pipeline use create(pMesh, NULL, 0);
-		void create(const aiMesh* pMesh, GLint* attrId, size_t attrCount);
-		void create(GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
+		void create(const aiMesh* pMesh, const GLint* attrId, size_t attrCount);
+		void create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
 
 		// Render the mesh
-		void render();
+		void render() const;
+
+		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
+		GLuint setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor = 1, GLenum usage = GL_STATIC_DRAW);
+		void addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset);
 
 		// Delete all buffer data - typically doesn't need to be called
 		void destroy();
@@ -95,20 +103,20 @@ namespace _3dgl
 		// Using ASSIMP data, read attribute or index buffer data. A binary buffer will be allocated and a pointer stored in *ppData, 
 		// *indSize will be filled with the element size and the function returns number of elements (0 if data unavailable).
 		// The retuen value is also: number of vertices for getAttrData, number of indices for getIndexData.
-		size_t getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize);
-		size_t getIndexData(void** ppData, size_t* indSize);
+		size_t getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize) const;
+		size_t getIndexData(void** ppData, size_t* indSize) const;
 
 		// Statistics
-		size_t getVertexCount()			{ return m_nVertices; }
-		size_t getIndexCount()			{ return m_nIndices; }
-		size_t getBoneCount()			{ return m_nBones; }
+		size_t getVertexCount() const		{ return m_nVertices; }
+		size_t getIndexCount() const		{ return m_nIndices; }
+		size_t getBoneCount() const			{ return m_nBones; }
 
 		// Material functions
-		C3dglMaterial *getMaterial();
+		C3dglMaterial *getMaterial() const;
 		C3dglMaterial *createNewMaterial();
 
 		// Bounding volume and geometrical centre
-		void getAABB(glm::vec3 aabb[2]) { aabb[0] = m_aabb[0]; aabb[1] = m_aabb[1]; }
+		void getAABB(glm::vec3 aabb[2]) const	{ aabb[0] = m_aabb[0]; aabb[1] = m_aabb[1]; }
 	
 		std::string getName() const;
 	};

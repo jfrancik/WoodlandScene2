@@ -83,6 +83,7 @@ namespace _3dgl
 
 		bool load(const std::string filename, float scaleHeight);
 		void create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
+//		void create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
 		void destroy();
 
 		void render(glm::mat4 matrix);

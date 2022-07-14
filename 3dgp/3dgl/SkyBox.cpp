@@ -79,7 +79,7 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
 
 	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	GLint* attrId = NULL;
+	const GLint* attrId = NULL;
 	if (pProgram)
 	{
 		attrId = pProgram->getShaderSignature();

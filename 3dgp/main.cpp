@@ -23,7 +23,7 @@ vec3 wolfVel = vec3(0, 0, 0);
 C3dglSkyBox skybox;
 C3dglTerrain terrain;
 C3dglModel wolf, tree, stone;
-vec4 trees[500];
+const size_t TREES = 2000;
 
 // Texture Ids
 GLuint idTexTerrain;
@@ -100,12 +100,20 @@ bool init()
 		"models\\mountain\\mup.tga",
 		"models\\mountain\\mdn.tga")) return false;
 
-	for (vec4 & pos : trees)
+	vec3 trees[TREES];
+	for (vec3 & v: trees)
 	{
 		float x = linearRand(-128.f, 128.f);
 		float z = linearRand(-128.f, 128.f);
-		pos = vec4(x, terrain.getInterpolatedHeight(x, z), z, linearRand(0.f, 6.28f));
+		v = vec3(x, terrain.getInterpolatedHeight(x, z), z);
 	}
+
+	// three special trees in predefined positions
+	trees[0] = vec3(0, terrain.getInterpolatedHeight(0, -2), -2);
+	trees[1] = vec3(-5, terrain.getInterpolatedHeight(-5, -1), -1);
+	trees[2] = vec3(-4, terrain.getInterpolatedHeight(-4, -4), -4);
+
+	tree.setupInstancingData(program.getAttribLocation("aOffset"), TREES, 3, (float*)&trees[0]);
 
 	// setup lights
 	program.sendUniform("lightDir.direction", vec3(- 1.0f, 1.0f, 1.0f));
@@ -243,26 +251,12 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 
 	// render the trees
 	program.sendUniform("bNormalMap", level >= 8);
-	for (vec4 pos : trees)
-	{
-		m = translate(matrixView, vec3(pos));
-		m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-		m = rotate(m, pos.w, vec3(0.f, 1.f, 0.f));
-		tree.render(m);
-	}
-
-	m = translate(matrixView, vec3(0, terrain.getInterpolatedHeight(0, -2), -2));
+	program.sendUniform("instancing", true);
+	m = matrixView;
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-	tree.render(m);
-	m = translate(matrixView, vec3(-5, terrain.getInterpolatedHeight(-5, -1), -1));
-	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-	m = rotate(m, radians(150.f), vec3(0.f, 1.f, 0.f));
-	tree.render(m);
-	m = translate(matrixView, vec3(-4, terrain.getInterpolatedHeight(-4, -4), -4));
-	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-	m = rotate(m, radians(70.f), vec3(0.f, 1.f, 0.f));
 	tree.render(m);
 	program.sendUniform("bNormalMap", false);
+	program.sendUniform("instancing", false);
 }
 
 void onRender()
@@ -291,6 +285,7 @@ void onRender()
 
 	// setup View Matrix
 	program.sendUniform("matrixView", matrixView);
+	program.sendUniform("matrixInvView", glm::inverse(matrixView));
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime);

@@ -67,16 +67,16 @@ namespace _3dgl
 		void create(const aiMaterial* pMat, const char* pDefTexPath);
 		void destroy();
 
-		void render(C3dglProgram*);
+		void render(C3dglProgram*) const;
 
-		bool getAmbient(glm::vec3& val)		{ if (!m_bAmb) return false; val = m_amb; return true;  }
-		bool getDiffuse(glm::vec3& val)		{ if (!m_bDiff) return false; val = m_diff; return true; }
-		bool getSpecular(glm::vec3& val)	{ if (!m_bSpec) return false; val = m_spec; return true; }
-		bool getEmissive(glm::vec3& val)	{ if (!m_bEmiss) return false; val = m_emiss; return true; }
-		bool getShininess(float& val)		{ if (!m_bShininess) return false; val = m_shininess; return true; }
+		bool getAmbient(glm::vec3& val)	const	{ if (!m_bAmb) return false; val = m_amb; return true;  }
+		bool getDiffuse(glm::vec3& val)	const	{ if (!m_bDiff) return false; val = m_diff; return true; }
+		bool getSpecular(glm::vec3& val) const	{ if (!m_bSpec) return false; val = m_spec; return true; }
+		bool getEmissive(glm::vec3& val) const	{ if (!m_bEmiss) return false; val = m_emiss; return true; }
+		bool getShininess(float& val) const		{ if (!m_bShininess) return false; val = m_shininess; return true; }
 
-		bool getTexture(GLenum texUnit, unsigned& idTex) { unsigned i = m_idTexture[texUnit - GL_TEXTURE0];  if (i == 0xffffffff) return false; idTex = i; return true; }
-		bool getTexture(unsigned& idTex)				 { return getTexture(GL_TEXTURE0, idTex); }
+		bool getTexture(GLenum texUnit, unsigned& idTex) const { unsigned i = m_idTexture[texUnit - GL_TEXTURE0];  if (i == 0xffffffff) return false; idTex = i; return true; }
+		bool getTexture(unsigned& idTex) const	 { return getTexture(GL_TEXTURE0, idTex); }
 
 
 		void setAmbient(glm::vec3 colour)	{ m_bAmb = true; m_amb = colour; }
