@@ -32,7 +32,7 @@ void C3dglTerrain::createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, v
 			int index = (i + (m_nSizeZ - j - 1) * m_nSizeX) * 4;
 			unsigned char val = static_cast<unsigned char*>(pBytes)[index];
 			float f = (float)val / 256.0f;
-			m_heights[i * m_nSizeX + j] = f * m_fScaleHeight;
+			m_heights[i * m_nSizeZ + j] = f * m_fScaleHeight;
 		}
 }
 
