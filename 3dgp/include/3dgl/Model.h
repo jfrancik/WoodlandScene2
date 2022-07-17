@@ -39,7 +39,6 @@ freely, subject to the following restrictions:
 #ifndef __3dglModel_h_
 #define __3dglModel_h_
 
-#include "Object.h"
 #include "Material.h"
 #include "Mesh.h"
 #include "Animation.h"
@@ -76,10 +75,6 @@ namespace _3dgl
 		glm::mat4 m_globInvT;						// global transformation matrix (transposed)
 #pragma warning(pop)
 
-		// shader-related data
-		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL if fixed pipeline or no model loaded
-		mutable C3dglProgram* m_pLastProgramUsed;	// the last program used for rendering; NULL if never rendered since loading the model
-
 	public:
 		C3dglModel();
 		~C3dglModel() { destroy(); }
@@ -88,9 +83,9 @@ namespace _3dgl
 
 		// Loading
 		// load a model from file
-		bool load(const char* filename, unsigned int flags = 0);
+		bool load(const char* filename, unsigned int flags = 0, C3dglProgram* pProgram = NULL);
 		// create a model from AssImp handle - useful if you are using AssImp directly
-		void create(const aiScene* pScene);
+		void create(const aiScene* pScene, C3dglProgram* pProgram);
 		// create material information and load textures from MTL file - must be preceded by either load or create
 		void loadMaterials(const char* pDefTexPath = NULL);
 		// load animations. By default loads animations from the current model. 
@@ -107,18 +102,18 @@ namespace _3dgl
 
 		// Rendering
 		// render the entire model
-		void render(glm::mat4 matrix) const;
+		void render(glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
 		// render one of the main nodes - see getMainNodeCount below
-		void render(unsigned iNode, glm::mat4 matrix) const;
+		void render(unsigned iNode, glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
 		// render a single node
-		void renderNode(aiNode* pNode, glm::mat4 m) const;
+		void renderNode(aiNode* pNode, glm::mat4 m, C3dglProgram* pProgram = NULL) const;
 		// returns the count of main nodes
 		unsigned getMainNodeCount() const;
 
 		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
 		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, float* data, GLuint divisor = 1);
 		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, int* data, GLuint divisor = 1);
-
+		
 		// Mesh functions
 		bool hasMeshes() const						{ return m_meshes.size() > 0; }
 		size_t getMeshCount() const					{ return m_meshes.size(); }
@@ -168,7 +163,7 @@ namespace _3dgl
 
 		void stats(unsigned level = 0) const;
 
-		std::string getName() const { return m_name; } // "Model (" + m_name + ")";
+		std::string getName() const { return "Model \"" + m_name + "\""; }
 	};
 }; // namespace _3dgl
 

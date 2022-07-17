@@ -10,13 +10,12 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
 using namespace _3dgl;
 
-C3dglTerrain::C3dglTerrain() : m_id{ 0, 0, 0, 0, 0 }, m_idIndex(0), m_idVAO(0)
+C3dglTerrain::C3dglTerrain() : C3dglVertexAttrObject(ATTR_COUNT_EXT)	// we use "extended set" of attributes - with tangents and bitangents but no color and bones
 {
 	// height map
 	m_heights = NULL;
     m_nSizeX = m_nSizeZ = 0;
 	m_fScaleHeight = 1;
-	m_pProgram = m_pLastProgramUsed = NULL;
 }
 
 void C3dglTerrain::createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes)
@@ -37,7 +36,7 @@ void C3dglTerrain::createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, v
 		}
 }
 
-size_t C3dglTerrain::getBuffers(float** attrData, size_t* attrSize, size_t attrCount)
+size_t C3dglTerrain::getBuffers(size_t attrCount, float** attrData, size_t* attrSize)
 {
 	if (!attrCount) return 0;
 
@@ -64,7 +63,7 @@ size_t C3dglTerrain::getBuffers(float** attrData, size_t* attrSize, size_t attrC
 			*pVertex++ = getHeight(x, z);
 			*pVertex++ = (float)z;
 
-			if (attrCount < 2) continue;
+			if (attrCount <= ATTR_NORMAL) continue;
 			int x0 = (x == minx) ? x : x - 1;
 			int x1 = (x == minx + m_nSizeX - 1) ? x : x + 1;
 			int z0 = (z == minz) ? z : z - 1;
@@ -77,16 +76,16 @@ size_t C3dglTerrain::getBuffers(float** attrData, size_t* attrSize, size_t attrC
 			*pNormal++ = 2 / m;
 			*pNormal++ = -dy_z / m;
 
-			if (attrCount < 3) continue;
+			if (attrCount <= ATTR_TEXCOORD) continue;
 			*pTexCoord++ = (float)x / 2.f;
 			*pTexCoord++ = (float)z / 2.f;
 
-			if (attrCount < 4) continue;
+			if (attrCount < ATTR_TANGENT) continue;
 			*pTangent++ = 1;
 			*pTangent++ = dy_x / (x1 - x0);
 			*pTangent++ = 0;
 
-			if (attrCount < 5) continue;
+			if (attrCount < ATTR_BITANGENT) continue;
 			*pBiTangent++ = 0;
 			*pBiTangent++ = dy_z / (z1 - z0);
 			*pBiTangent++ = 1;
@@ -130,7 +129,7 @@ size_t C3dglTerrain::getIndexBuffer(GLuint** indexData, size_t* indSize)
 	return indicesSize * 6;
 }
 
-void C3dglTerrain::cleanUp(float** attrData, GLuint* indexData, size_t attrCount)
+void C3dglTerrain::cleanUp(size_t attrCount, float** attrData, GLuint* indexData)
 {
 	for (int attr = 0; attr < attrCount; attr++)
 		delete[] attrData[attr];
@@ -179,7 +178,7 @@ float C3dglTerrain::getInterpolatedHeight(float fx, float fz)
 		return glm::dot(barycentric(glm::vec2(fx, fz), glm::vec2(0, 1), glm::vec2(1, 0), glm::vec2(1, 1)), glm::vec3(getHeight(x, z + 1), getHeight(x + 1, z), getHeight(x + 1, z + 1)));
 }
 
-bool C3dglTerrain::load(const std::string filename, float scaleHeight)
+bool C3dglTerrain::load(const std::string filename, float scaleHeight, C3dglProgram* pProgram)
 {
 	m_name = filename;
 	size_t i = m_name.find_last_of("/\\");
@@ -191,12 +190,18 @@ bool C3dglTerrain::load(const std::string filename, float scaleHeight)
 	if (!bm.load(filename, GL_RGBA))
 		return false;
 
-	create(bm.getWidth(), abs(bm.getHeight()), scaleHeight, bm.getBits());
+	create(bm.getWidth(), abs(bm.getHeight()), scaleHeight, bm.getBits(), pProgram);
 	return true;
 }
 
-void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes)
+void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes, C3dglProgram* pProgram)
 {
+	if (getAttrCount() != ATTR_COUNT_EXT)
+	{
+		log(M3DGL_INTERNAL_ERROR);
+		return;		// this should never happen!
+	}
+
 	if (m_heights)
 		destroy();
 
@@ -204,133 +209,21 @@ void C3dglTerrain::create(int nSizeX, int nSizeZ, float fScaleHeight, void* pByt
 	createHeightMap(nSizeX, nSizeZ, fScaleHeight, pBytes);
 
 	// Prepare Attributes - and pack them into temporary buffers
-	float* attrData[c_attrCount];
-	size_t attrSize[c_attrCount];
-	size_t nVertices = getBuffers(attrData, attrSize, c_attrCount);
-
-	// Find the Current Program
-	m_pProgram = C3dglProgram::getCurrentProgram();
-	m_pLastProgramUsed = NULL;
-
-	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	const GLint* attrId = NULL;
-	if (m_pProgram)
-	{
-		attrId = m_pProgram->getShaderSignature();
-
-		// Generate warnings
-		if (attrId[ATTR_VERTEX] == -1)
-			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
-		if (attrId[ATTR_NORMAL] == -1)
-			log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
-	}
-	else
-	{
-		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
-		static GLint a[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY, -1, -1, -1, -1, -1 };
-		attrId = a;
-	}
-
-	// create VAO
-	glGenVertexArrays(1, &m_idVAO);
-	glBindVertexArray(m_idVAO);
-
-	// generate VBO's and enable attrinuttes in VAO
-	for (size_t attr = ATTR_VERTEX; attr < c_attrCount; attr++)
-		if (attrId[attr] != -1)
-		{
-			// Prepare Vertex Buffer
-			glGenBuffers(1, &m_id[attr]);
-			glBindBuffer(GL_ARRAY_BUFFER, m_id[attr]);
-			glBufferData(GL_ARRAY_BUFFER, nVertices * attrSize[attr], attrData[attr], GL_STATIC_DRAW);
-
-			if (m_pProgram)
-			{
-				glEnableVertexAttribArray(attrId[attr]);
-				glVertexAttribPointer(attrId[attr], static_cast<GLint>(attrSize[attr] / sizeof(float)), GL_FLOAT, GL_FALSE, 0, 0);
-			}
-			else
-			{
-				glEnableClientState(attrId[attr]);
-				switch (attr)
-				{
-				case ATTR_VERTEX: glVertexPointer(3, GL_FLOAT, 0, 0); break;
-				case ATTR_NORMAL: glNormalPointer(GL_FLOAT, 0, 0); break;
-				case ATTR_TEXCOORD: glTexCoordPointer(2, GL_FLOAT, 0, 0); break;
-				}
-			}
-		}
+	float* attrData[ATTR_COUNT_EXT];	// we use "extended set" of attributes - with tangents and bitangents but no color and bones
+	size_t attrSize[ATTR_COUNT_EXT];
+	size_t nVertices = getBuffers(getAttrCount(), attrData, attrSize);
 
 	GLuint* indices = NULL;
 	size_t indSize = 0;
 	size_t nIndices = getIndexBuffer(&indices, &indSize);
 
-	glGenBuffers(1, &m_idIndex);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_idIndex);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indSize * nIndices, indices, GL_STATIC_DRAW);
-
-	cleanUp(attrData, indices, c_attrCount);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	C3dglVertexAttrObject::create(getAttrCount(), nVertices, (void**)attrData, attrSize, nIndices, indices, indSize, pProgram);
+	cleanUp(getAttrCount(), attrData, indices);
 }
 
 void C3dglTerrain::destroy()
 {
-	for (unsigned attr = ATTR_VERTEX; attr < c_attrCount; attr++)
-		glDeleteBuffers(1, &m_id[attr]);
-	std::fill(m_id, m_id + c_attrCount, 0);
-	glDeleteBuffers(1, &m_idIndex); m_idIndex = 0;
-	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
+	C3dglVertexAttrObject::destroy();
 	delete[] m_heights;
 	m_heights = NULL;
 }
-
-void C3dglTerrain::render(glm::mat4 matrix)
-{
-	// check if a shading program is active
-	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
-
-	// perform compatibility checks
-	// the only point of this paragraph is to display warnings if the shader used to render and the shader used to load the model are different
-	if (pProgram != m_pLastProgramUsed)		// first conditional is used to bypass the check if the current program is the same as the last program used
-	{
-		m_pLastProgramUsed = pProgram;
-		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
-		{
-
-			const GLint* pLoadSignature = m_pProgram->getShaderSignature();
-			const GLint* pRenderSignature = pProgram->getShaderSignature();
-			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
-			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
-			size_t nLen = glm::min(nLoadLen, nRenderLen);
-			if (std::equal(pLoadSignature, pLoadSignature + nLen, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
-				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
-			else
-			{
-				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
-				for (unsigned i = 0; i < nLen; i++)
-					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
-						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
-					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)
-						log(M3DGL_WARNING_VERTEX_BUFFER_NOT_LOADED_BUT_REQUESTED + i);
-			}
-		}
-	}
-
-	if (pProgram)
-		pProgram->sendUniform(UNI_MODELVIEW, matrix);
-	else
-	{
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glMultMatrixf((GLfloat*)&matrix);
-	}
-
-	glBindVertexArray(m_idVAO);
-	glDrawElements(GL_TRIANGLES, (m_nSizeX - 1) * (m_nSizeZ - 1) * 6, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
-}
-

@@ -42,7 +42,10 @@ namespace _3dgl
 		ATTR_COLOR,
 		ATTR_BONE_ID,
 		ATTR_BONE_WEIGHT,
-		ATTR_LAST
+		
+		ATTR_COUNT,							// total attribute count
+		ATTR_COUNT_BASIC = ATTR_TANGENT,	// basic attribute count (vertex, normal, tex-coord) used in fixed pipeline and sky boxes
+		ATTR_COUNT_EXT = ATTR_COLOR			// extended attribute count, used by terrain objects (incl. tangent and bitangent)
 	};
 
 	// Standard Uniform Variables
@@ -53,7 +56,8 @@ namespace _3dgl
 		UNI_MAT_SPECULAR,
 		UNI_MAT_EMISSIVE,
 		UNI_MAT_SHININESS,
-		UNI_LAST
+		
+		UNI_COUNT							// total standard unoform count
 	};
 
 	// Maximum Bones per Vertex

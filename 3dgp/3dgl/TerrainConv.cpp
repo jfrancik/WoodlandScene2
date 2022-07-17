@@ -32,7 +32,7 @@ bool MY3DGL_API _3dgl::convHeightmap2OBJ(const std::string fileImage, float scal
 	const size_t attrCount = ATTR_TANGENT;	// This is a OBJ file, no need to create more than 3 attrins as tangents and bitangents are not supported!
 	float* attrData[attrCount];
 	size_t attrSize[attrCount];
-	size_t nVertices = terrain.getBuffers(attrData, attrSize, attrCount);
+	size_t nVertices = terrain.getBuffers(attrCount, attrData, attrSize);
 
 	GLuint* indices = NULL;
 	size_t indSize = 0;
@@ -64,12 +64,12 @@ bool MY3DGL_API _3dgl::convHeightmap2OBJ(const std::string fileImage, float scal
 					<< indices[i+1] + 1 << "/" << indices[i+1] + 1 << "/" << indices[i+1] + 1 << " "
 					<< indices[i+2] + 1 << "/" << indices[i+2] + 1 << "/" << indices[i+2] + 1 << std::endl;
 
-	terrain.cleanUp(attrData, indices, attrCount);
+	terrain.cleanUp(attrCount, attrData, indices);
 
 	return true;
 }
 
-bool MY3DGL_API _3dgl::convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh)
+bool MY3DGL_API _3dgl::convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh, C3dglProgram* pProgram)
 {
 	C3dglBitmap bm;
 	if (!bm.load(fileImage, GL_RGBA) || !bm.getBits())
@@ -82,18 +82,15 @@ bool MY3DGL_API _3dgl::convHeightmap2Mesh(const std::string fileImage, float sca
 	const size_t attrCount = ATTR_COLOR;	// 5 attribs but no colour and no bones
 	float* attrData[attrCount];
 	size_t attrSize[attrCount];
-	size_t nVertices = terrain.getBuffers(attrData, attrSize, attrCount);
+	size_t nVertices = terrain.getBuffers(attrCount, attrData, attrSize);
 
 	GLuint* indices = NULL;
 	size_t indSize = 0;
 	size_t nIndices = terrain.getIndexBuffer(&indices, &indSize);
 
-	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
-	static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
-	if (pProgram)
-		mesh.create(pProgram->getShaderSignature(), glm::min(pProgram->getShaderSignatureLength(), attrCount), nVertices, nIndices, (void**)attrData, attrSize, indices, indSize);
-	else
-		mesh.create(fixedAttr, 3, nVertices, nIndices, (void**)attrData, attrSize, indices, indSize);
-	
+	static_cast<C3dglVertexAttrObject*>(&mesh)->create(attrCount, nVertices, (void**)attrData, attrSize, nIndices, indices, indSize, pProgram);
+
+	terrain.cleanUp(attrCount, attrData, indices);
+
 	return true;
 }

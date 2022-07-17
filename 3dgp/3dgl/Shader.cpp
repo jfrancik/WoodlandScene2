@@ -175,8 +175,8 @@ C3dglProgram *C3dglProgram::c_pCurrentProgram = NULL;
 C3dglProgram::C3dglProgram() : C3dglObject()
 {
 	m_id = 0;
-	std::fill(m_stdAttr, m_stdAttr + ATTR_LAST, -1);
-	std::fill(m_stdUni, m_stdUni + UNI_LAST, -1);
+	std::fill(m_stdAttr, m_stdAttr + ATTR_COUNT, -1);
+	std::fill(m_stdUni, m_stdUni + UNI_COUNT, -1);
 	// init the static (global) map of uniform types
 	_initMapTypes();
 }
@@ -219,11 +219,11 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 	}
 
 	// register active variables
-	GLint nUniforms, maxLen;
+	GLint nActive, maxLen;
 	glGetProgramiv(getId(), GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxLen);
-	glGetProgramiv(getId(), GL_ACTIVE_UNIFORMS, &nUniforms);
+	glGetProgramiv(getId(), GL_ACTIVE_UNIFORMS, &nActive);
 	GLchar *buf = new GLchar[maxLen];
-	for (int i = 0; i < nUniforms; ++i) 
+	for (int i = 0; i < nActive; ++i) 
 	{
 		GLsizei written;
 		GLint size, location;
@@ -244,6 +244,22 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 	}
 	delete[] buf;
 
+	// register active attributes
+	glGetProgramiv(getId(), GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &maxLen);
+	glGetProgramiv(getId(), GL_ACTIVE_ATTRIBUTES, &nActive);
+	buf = new GLchar[maxLen];
+	for (int i = 0; i < nActive; ++i)
+	{
+		GLsizei written;
+		GLint size, location;
+		GLenum type;
+		glGetActiveAttrib(getId(), i, maxLen, &written, &size, &type, buf);
+		location = glGetAttribLocation(getId(), buf);
+		std::string name = buf;
+		m_attribs[name] = location;
+	}
+	delete[] buf;
+
 	// Collect Standard Attribute Locations
 	std::string STD_ATTRIB_NAMES[] = {
 		"a_vertex|a_Vertex|aVertex|avertex|vertex|Vertex",
@@ -259,7 +275,7 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 	};
 	size_t astart = 0, aend = 0;
 	std_attrib_names += ";";
-	for (size_t attr = 0; attr < ATTR_LAST; attr++)
+	for (size_t attr = 0; attr < ATTR_COUNT; attr++)
 	{
 		std::string str = "";
 		aend = std_attrib_names.find(";", astart);
@@ -301,7 +317,7 @@ bool C3dglProgram::link(std::string std_attrib_names, std::string std_uni_names)
 	};
 	size_t lstart = 0, lend = 0;
 	std_uni_names += ";";
-	for (size_t i = 0; i < UNI_LAST; i++)
+	for (size_t i = 0; i < UNI_COUNT; i++)
 	{
 		std::string str = "";
 		lend = std_uni_names.find(";", lstart);
@@ -362,9 +378,11 @@ GLint C3dglProgram::getAttribLocation(std::string idAttrib) const
 	auto i = m_attribs.find(idAttrib);
 	if (i == m_attribs.end())
 	{
-		GLint nAttrib = glGetAttribLocation(m_id, idAttrib.c_str());
-		m_attribs[idAttrib] = nAttrib;
-		return nAttrib;
+		GLint nLocation = glGetAttribLocation(m_id, idAttrib.c_str());
+		m_attribs[idAttrib] = nLocation;
+		if (nLocation == -1) log(M3DGL_WARNING_ATTRIBUTE_NOT_FOUND, idAttrib);
+		else log(M3DGL_WARNING_ATTRIBUTE_NOT_REGISTERED, idAttrib);
+		return nLocation;
 	}
 	else
 		return i->second;
@@ -380,9 +398,9 @@ GLint C3dglProgram::getUniformLocation(std::string idUniform) const
 
 GLint C3dglProgram::getUniformLocation(UNI_STD uniId) const
 { 
-	if (uniId < 0 || uniId >= UNI_LAST)
+	if (uniId < 0 || uniId >= UNI_COUNT)
 	{
-		log(M3DGL_ERROR_WRONG_STD_UNIFORM_ID, (unsigned)UNI_LAST);
+		log(M3DGL_ERROR_WRONG_STD_UNIFORM_ID, (unsigned)UNI_COUNT);
 		return -1;
 	}
 	return m_stdUni[uniId]; 

@@ -29,24 +29,26 @@ freely, subject to the following restrictions:
 #ifndef _3dglSkyBox_H
 #define _3dglSkyBox_H
 
+// Include GLM core features
+#include "../glm/glm.hpp"
+
+#include "VAO.h"
+
 namespace _3dgl
 {
-    class MY3DGL_API C3dglSkyBox : public C3dglObject
+    class C3dglProgram;
+
+    class MY3DGL_API C3dglSkyBox : public C3dglVertexAttrObject
     {
-        // VAO (Vertex Array Object) id
-        GLuint m_idVAO;
-
         unsigned int  m_idTex[6];
-
-        // Attribute Buffer Ids
-        static const size_t c_attrCount = ATTR_TEXCOORD + 1;
-        GLuint m_id[c_attrCount];
 
     public:
         C3dglSkyBox();
 
-	    bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn);
-	    void render(glm::mat4 matrix);
+	    bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn, C3dglProgram *pProgram = NULL);
+	    
+        void render(glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
+        virtual void render() const;
 
         std::string getName() const { return "SkyBox"; }
     };

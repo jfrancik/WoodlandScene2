@@ -85,23 +85,16 @@ bool init()
 	if (!wolf.load("models\\wolf.dae")) return false;
 	wolf.loadAnimations();
 
+	if (!stone.load("models\\stone.obj")) return false;
+
 	if (!tree.load("models\\tree\\tree.3ds")) return false;
 	tree.loadMaterials("models\\tree");
 	tree.getMaterial(0)->loadTexture(GL_TEXTURE1, "models\\tree", "pine-trunk-norm.dds");
 	tree.getMaterial(1)->loadTexture(GL_TEXTURE1, "models\\tree", "pine-leaf-norm.dds");
 	tree.getMaterial(2)->loadTexture(GL_TEXTURE1, "models\\tree", "pine-branch-norm.dds");
-	if (!stone.load("models\\stone.obj")) return false;
 	
-	if (!skybox.load(
-		"models\\mountain\\mft.tga",
-		"models\\mountain\\mlf.tga",
-		"models\\mountain\\mbk.tga",
-		"models\\mountain\\mrt.tga",
-		"models\\mountain\\mup.tga",
-		"models\\mountain\\mdn.tga")) return false;
-
 	vec3 trees[TREES];
-	for (vec3 & v: trees)
+	for (vec3& v : trees)
 	{
 		float x = linearRand(-128.f, 128.f);
 		float z = linearRand(-128.f, 128.f);
@@ -114,6 +107,14 @@ bool init()
 	trees[2] = vec3(-4, terrain.getInterpolatedHeight(-4, -4), -4);
 
 	tree.setupInstancingData(program.getAttribLocation("aOffset"), TREES, 3, (float*)&trees[0]);
+
+	if (!skybox.load(
+		"models\\mountain\\mft.tga",
+		"models\\mountain\\mlf.tga",
+		"models\\mountain\\mbk.tga",
+		"models\\mountain\\mrt.tga",
+		"models\\mountain\\mup.tga",
+		"models\\mountain\\mdn.tga")) return false;
 
 	// setup lights
 	program.sendUniform("lightDir.direction", vec3(- 1.0f, 1.0f, 1.0f));

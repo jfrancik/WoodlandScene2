@@ -94,9 +94,9 @@ namespace _3dgl
 		mutable std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
 #pragma warning(pop)
 
-		size_t m_stdAttrNum = ATTR_LAST;				// number of standard attributes (8)
-		GLint m_stdAttr[ATTR_LAST];						// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
-		GLint m_stdUni[UNI_LAST];						// array of standard uniform locations (see enum UNI_STD in CommonDef.h)
+		size_t m_stdAttrNum = ATTR_COUNT;				// number of standard attributes (8)
+		GLint m_stdAttr[ATTR_COUNT];						// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
+		GLint m_stdUni[UNI_COUNT];						// array of standard uniform locations (see enum UNI_STD in CommonDef.h)
 
 	public:
 		C3dglProgram();

@@ -25,11 +25,10 @@ using namespace _3dgl;
 C3dglModel::C3dglModel() : C3dglObject(), m_globInvT(1)
 { 
 	m_pScene = NULL; 
-	m_pProgram = m_pLastProgramUsed = NULL;
 	m_bFBXImportPreservePivots = false;
 }
 
-bool C3dglModel::load(const char* filename, unsigned int flags)
+bool C3dglModel::load(const char* filename, unsigned int flags, C3dglProgram* pProgram)
 {
 	if (flags == 0)
 		flags = aiProcessPreset_TargetRealtime_MaxQuality;
@@ -54,45 +53,18 @@ bool C3dglModel::load(const char* filename, unsigned int flags)
 	
 	if (pScene == NULL)
 		return log(M3DGL_ERROR_AI, aiGetErrorString());
-	create(pScene);
+	create(pScene, pProgram);
 	return true;
 }
 
-void C3dglModel::create(const aiScene* pScene)
+void C3dglModel::create(const aiScene* pScene, C3dglProgram *pProgram)
 {
-	// Find the Current Program
-	m_pProgram = C3dglProgram::getCurrentProgram();
-	m_pLastProgramUsed = NULL;
-
-	// Aquire the Shader Signature - a collection of all standard attributes - see ATTRIB_STD enum for the list
-	const GLint *attrId = NULL;
-	size_t attrNum = 0;
-	if (m_pProgram)
-	{
-		attrId = m_pProgram->getShaderSignature();
-		attrNum = m_pProgram->getShaderSignatureLength();
-
-		// Generate warnings
-		if (attrId[ATTR_VERTEX] == -1)
-			log(M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED);
-		if (attrId[ATTR_NORMAL] == -1)
-			log(M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED);
-		if (attrId[ATTR_BONE_ID] != -1 && attrId[ATTR_BONE_WEIGHT] == -1)
-			log(M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED);
-		if (attrId[ATTR_BONE_ID] == -1 && attrId[ATTR_BONE_WEIGHT] != -1)
-			log(M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED);
-	}
-	else
-		log(M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE);
-
 	// create meshes
 	m_pScene = pScene;
 	m_meshes.resize(m_pScene->mNumMeshes, C3dglMesh(this));
 	aiMesh** ppMesh = m_pScene->mMeshes;
 	for (C3dglMesh& mesh : m_meshes)
-		mesh.create(*ppMesh++, attrId, attrNum);
-
-	m_globInvT = glm::inverse(glm::transpose(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation)));
+		mesh.create(*ppMesh++, pProgram);
 }
 
 void C3dglModel::loadMaterials(const char* pTexRootPath)
@@ -112,6 +84,8 @@ unsigned C3dglModel::loadAnimations()
 
 unsigned C3dglModel::loadAnimations(C3dglModel* pCompatibleModel)
 {
+	m_globInvT = glm::inverse(glm::transpose(glm::make_mat4((float*)&m_pScene->mRootNode->mTransformation)));
+
 	if (pCompatibleModel == NULL)
 		pCompatibleModel = this;
 
@@ -145,77 +119,38 @@ void C3dglModel::destroy()
 	}
 }
 
-void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m) const
+void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m, C3dglProgram* pProgram) const
 {
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
-	// check if a shading program is active
-	C3dglProgram* pProgram = C3dglProgram::getCurrentProgram();
-
-	// perform compatibility checks
-	// the only point of this paragraph is to display warnings if the shader used to render and the shader used to load the model are different
-	if (pProgram != m_pLastProgramUsed)		// first conditional is used to bypass the check if the current program is the same as the last program used
-	{
-		m_pLastProgramUsed = pProgram;
-		if (pProgram != m_pProgram)	// no checks needed if the current program is the same as the loading program
-		{
-			
-			const GLint* pLoadSignature = m_pProgram->getShaderSignature();
-			const GLint* pRenderSignature = pProgram->getShaderSignature();
-			size_t nLoadLen = m_pProgram->getShaderSignatureLength();
-			size_t nRenderLen = m_pProgram->getShaderSignatureLength();
-			size_t nLen = glm::min(nLoadLen, nRenderLen);
-			if (std::equal(pLoadSignature, pLoadSignature + nLen, pRenderSignature, [](GLint a, GLint b) { return a == -1 && b == -1 || a != -1 && b != -1; }))
-				log(M3DGL_WARNING_DIFFERENT_PROGRAM_USED_BUT_COMPATIBLE);
-			else
-			{
-				log(M3DGL_WARNING_INCOMPATIBLE_PROGRAM_USED);
-				for (unsigned i = 0; i < nLen; i++)
-					if (pLoadSignature[i] != -1 && pRenderSignature[i] == -1)
-						log(M3DGL_WARNING_VERTEX_BUFFER_PREPARED_BUT_NOT_USED + i);
-					else if (pLoadSignature[i] == -1 && pRenderSignature[i] != -1)
-						log(M3DGL_WARNING_VERTEX_BUFFER_NOT_LOADED_BUT_REQUESTED + i);
-			}
-		}
-	}
-
-	// send model view matrix
-	if (pProgram)
-		pProgram->sendUniform(UNI_MODELVIEW, m);
-	else
-	{
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glMultMatrixf((GLfloat*)&m);
-	}
-
+	// render all meshes (and their materials)
 	for (unsigned iMesh : std::vector<unsigned>(pNode->mMeshes, pNode->mMeshes + pNode->mNumMeshes))
 	{
 		const C3dglMesh* pMesh = &m_meshes[iMesh];
 		const C3dglMaterial* pMaterial = pMesh->getMaterial();
 		if (pMaterial)
 			pMaterial->render(pProgram);
-		pMesh->render();
+		pMesh->render(m, pProgram);
 	}
 
 	// draw all children
 	for (aiNode* p : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		renderNode(p, m);
+		renderNode(p, m, pProgram);
 }
 
-void C3dglModel::render(glm::mat4 matrix) const
+void C3dglModel::render(glm::mat4 matrix, C3dglProgram* pProgram) const
 { 
 	if (m_pScene->mRootNode) 
-		renderNode(m_pScene->mRootNode, matrix);
+		renderNode(m_pScene->mRootNode, matrix, pProgram);
 }
 
-void C3dglModel::render(unsigned iNode, glm::mat4 matrix) const
+void C3dglModel::render(unsigned iNode, glm::mat4 matrix, C3dglProgram* pProgram) const
 {
 	// update transform
 	matrix *= glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation));
 
 	if (iNode <= getMainNodeCount())
-		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix);
+		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix, pProgram);
 }
 
 unsigned C3dglModel::getMainNodeCount() const
@@ -234,7 +169,6 @@ void C3dglModel::setupInstancingData(GLint attrLocation, size_t instances, GLint
 	for (int i = 0; i < getMeshCount(); i++)
 		getMesh(i)->setupInstancingData(attrLocation, instances, size, GL_INT, size * sizeof(int), data, divisor);
 }
-
 
 void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecursive) const
 {

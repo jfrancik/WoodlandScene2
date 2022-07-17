@@ -34,9 +34,11 @@ C3dglLogger::C3dglLogger()
 	operator[](M3DGL_WARNING_GENERIC) = "{}";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_FOUND) = "uniform location not found: {}.";
 	operator[](M3DGL_WARNING_UNIFORM_NOT_REGISTERED) = "unregistered uniform used: {}.";
+	operator[](M3DGL_WARNING_ATTRIBUTE_NOT_FOUND) = "attribute location not found: {}.";
+	operator[](M3DGL_WARNING_ATTRIBUTE_NOT_REGISTERED) = "unregistered attribute used: {}.";
 	operator[](M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE) = "failed to detect a programmable pipeline. Are you trying to load a model before initialisaing a shader program?";
-	operator[](M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED) = "is providing vertex coordinates but vertex buffer is not implemented in the current shader program. Consider another shader program.";
-	operator[](M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED) = "is providing normal coordinates but normal buffer is not implemented in the current shader program. Consider another shader program.";
+	operator[](M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED) = "requires vertex coordinates but vertex coordinate buffer is not implemented in the current shader program. Consider another shader program.";
+	operator[](M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED) = "requires normal coordinates but normal buffer is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_TEXCOORDS_COORDS_NOT_IMPLEMENTED) = "requires texture implementation but it is not implemented in the current shader program. Consider another shader program.";
 	operator[](M3DGL_WARNING_BONE_WEIGHTS_NOT_IMPLEMENTED) = "implements bone ids but bone weights are not implemented in the current shader program.";
 	operator[](M3DGL_WARNING_BONE_IDS_NOT_IMPLEMENTED) = "implements bone weights but bone ids are not implemented in the current shader program.";
@@ -78,7 +80,8 @@ C3dglLogger::C3dglLogger()
 	operator[](M3DGL_ERROR_GENERIC) = "{}";
 	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {}: sending value of {} but {} was expected.";
 	operator[](M3DGL_ERROR_WRONG_STD_UNIFORM_ID) = "standard uniform index out of scope. Should be less then {}.";
-
+	operator[](M3DGL_ERROR_INSTANCING_ATTR_NOT_FOUND) = "instancing failed. Attribute location does not exist.";
+	operator[](M3DGL_ERROR_INSTANCING_CANNOT_BE_CHANGED) = "instancing failed. Instancing count cannot be changed. It was set to {} and cannot be changhed to {}.";
 	operator[](M3DGL_ERROR_AI) = "internal ASSIMP error: {}";
 	operator[](M3DGL_ERROR_COMPILATION) = "compilation error: {}";
 	operator[](M3DGL_ERROR_LINKING) = "linking error: {}";
@@ -89,6 +92,8 @@ C3dglLogger::C3dglLogger()
 	operator[](M3DGL_ERROR_SHADER_NOT_CREATED) = "cannot attach shader: shader not created.";
 	operator[](M3DGL_ERROR_PROGRAM_NOT_CREATED) = "shader program not created.";
 	operator[](M3DGL_ERROR_UNKNOWN_LINKING_ERROR) = "unknown linking error";
+
+	operator[](M3DGL_INTERNAL_ERROR) = "INTERNAL ERROR";
 }
 
 C3dglLogger& C3dglLogger::getInstance()

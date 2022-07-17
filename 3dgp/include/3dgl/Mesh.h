@@ -35,8 +35,7 @@ freely, subject to the following restrictions:
 // Include GLM core features
 #include "../glm/glm.hpp"
 
-#include "Object.h"
-#include "CommonDef.h"
+#include "VAO.h"
 
 struct aiMesh;
 
@@ -44,61 +43,32 @@ namespace _3dgl
 {
 	class C3dglModel;
 	class C3dglMaterial;
+	class C3dglProgram;
 
-	class MY3DGL_API C3dglMesh : public C3dglObject
+	class MY3DGL_API C3dglMesh : public C3dglVertexAttrObject
 	{
-		// Owner and identification data name
-		C3dglModel *m_pOwner;
-		std::string m_name;
-		const aiMesh *m_pMesh;
+		C3dglModel *m_pOwner;		// owner model
+		std::string m_name;			// mesh name
+		const aiMesh *m_pMesh;		// underlying ASSIMP data structure
 
-		// VAO (Vertex Array Object) id
-		GLuint m_idVAO;
-
-		// Attribute Buffer Ids
-		static const size_t c_attrCount = ATTR_LAST;
-		GLuint m_id[c_attrCount];
-		GLuint m_idIndex;	// index buffer id
-
-		// statistics
-		size_t m_nVertices;			// number of vertices
-		size_t m_nIndices;			// number of elements to draw (size of index buffer)
 		size_t m_nBones;			// number of bones
 
-		// Material Index - points to the main m_materials collection
-		size_t m_matIndex;
+		size_t m_matIndex;			// Material Index - points to the main m_materials collection
 		
-		// Bounding Volume (experimental feature)
-		glm::vec3 m_aabb[2];
-
-		// Instancing values
-		size_t m_instances = 1;
-		GLuint m_divisor = 1;
+		glm::vec3 m_aabb[2];		// Bounding Volume
 
 	protected:
-		size_t getBuffers(const aiMesh* pMesh, const GLint *attrId, void** attrData, size_t* attrSize, size_t attrCount) const;
+		size_t getBuffers(const aiMesh* pMesh, const GLint *attrId, size_t attrCount, void** attrData, size_t* attrSize) const;
 		size_t getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t *indSize) const;
-		void cleanUp(void** attrData, void *indexData, size_t attrCount) const;		// call after getBuffers well data no longer required
+		void cleanUp(size_t attrCount, void** attrData, void *indexData) const;		// call after getBuffers well data no longer required
 		void getBoundingVolume(const aiMesh* pMesh, size_t nVertices, glm::vec3& aabb0, glm::vec3& aabb1) const;
 
 	public:
 		C3dglMesh(C3dglModel* pOwner = NULL);
 		virtual ~C3dglMesh() { destroy(); }
 
-		// Create a mesh using ASSIMP data and an array of Vertex Attributes (extracted from the current Shader Program)
-		// For fixed pipeline use create(pMesh, NULL, 0);
-		void create(const aiMesh* pMesh, const GLint* attrId, size_t attrCount);
-		void create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
-
-		// Render the mesh
-		void render() const;
-
-		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
-		GLuint setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor = 1, GLenum usage = GL_STATIC_DRAW);
-		void addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset);
-
-		// Delete all buffer data - typically doesn't need to be called
-		void destroy();
+		// Create a mesh using ASSIMP data and a shader progrem (currently used one if NULL)
+		void create(const aiMesh* pMesh, C3dglProgram* pProgram = NULL);
 
 		// Using ASSIMP data, read attribute or index buffer data. A binary buffer will be allocated and a pointer stored in *ppData, 
 		// *indSize will be filled with the element size and the function returns number of elements (0 if data unavailable).
@@ -106,16 +76,14 @@ namespace _3dgl
 		size_t getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize) const;
 		size_t getIndexData(void** ppData, size_t* indSize) const;
 
-		// Statistics
-		size_t getVertexCount() const		{ return m_nVertices; }
-		size_t getIndexCount() const		{ return m_nIndices; }
-		size_t getBoneCount() const			{ return m_nBones; }
+		// Bone count
+		size_t getBoneCount() const				{ return m_nBones; }
 
 		// Material functions
 		C3dglMaterial *getMaterial() const;
 		C3dglMaterial *createNewMaterial();
 
-		// Bounding volume and geometrical centre
+		// Bounding volume
 		void getAABB(glm::vec3 aabb[2]) const	{ aabb[0] = m_aabb[0]; aabb[1] = m_aabb[1]; }
 	
 		std::string getName() const;

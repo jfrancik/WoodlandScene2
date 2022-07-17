@@ -7,6 +7,7 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 #include <GL/glew.h>
 #include <3dgl/Mesh.h>
 #include <3dgl/Model.h>
+#include <3dgl/Shader.h>
 
 // assimp include file
 #include "assimp/scene.h"
@@ -17,21 +18,26 @@ Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 using namespace _3dgl;
 
 /*********************************************************************************
-** struct C3dglMESH
+** class C3dglMesh
 */
 
-C3dglMesh::C3dglMesh(C3dglModel* pOwner) : m_pOwner(pOwner), m_pMesh(NULL), m_aabb{ glm::vec3(), glm::vec3() }, m_id{ 0, 0, 0, 0, 0, 0, 0, 0 }
+C3dglMesh::C3dglMesh(C3dglModel* pOwner) : C3dglVertexAttrObject(ATTR_COUNT), m_pOwner(pOwner), m_pMesh(NULL), m_aabb{ glm::vec3(), glm::vec3() }
 {
-	m_idVAO = 0;
-	m_nVertices = m_nIndices = m_nBones = 0;
-	m_idIndex = 0;
+	m_nBones = 0;
 	m_matIndex = 0;
 }
 
-size_t C3dglMesh::getBuffers(const aiMesh* pMesh, const GLint* attrId, void** attrData, size_t* attrSize, size_t attrCount) const
+size_t C3dglMesh::getBuffers(const aiMesh* pMesh, const GLint* attrId, size_t attrCount, void** attrData, size_t* attrSize) const
 {
+	// initialise outputs
 	std::fill(attrData, attrData + attrCount, (void*)NULL);
 	std::fill(attrSize, attrSize + attrCount, 0);
+
+	// defaults for the fixed pipeline
+	static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
+	if (!attrId) attrId = fixedAttr;
+	if (!attrCount) attrCount = ATTR_COUNT_BASIC; // == 3
+
 
 	// Some initial statistics
 	size_t nVertices = pMesh->mNumVertices;				// number of vertices - must be > 0
@@ -101,7 +107,7 @@ size_t C3dglMesh::getBuffers(const aiMesh* pMesh, const GLint* attrId, void** at
 		sizeof(pMesh->mTangents[0]), sizeof(pMesh->mBitangents[0]), sizeof(pMesh->mColors[0][0]), sizeof(pBoneIds[0]) * MAX_BONES_PER_VERTEX, sizeof(pBoneWeights[0]) * MAX_BONES_PER_VERTEX };
 
 	// collect the actual buffer data
-	for (unsigned attr = ATTR_VERTEX; attr < attrCount; attr++)
+	for (unsigned attr = 0; attr < attrCount; attr++)
 		if (attrId[attr] != -1)
 		{
 			if (!_data[attr])
@@ -134,8 +140,10 @@ size_t C3dglMesh::getIndexBuffer(const aiMesh* pMesh, void** indexData, size_t* 
 	return nIndices * nVertPerFace;
 }
 
-void C3dglMesh::cleanUp(void** attrData, void *indexData, size_t attrCount) const
+void C3dglMesh::cleanUp(size_t attrCount, void** attrData, void *indexData) const
 {
+	if (!attrCount) attrCount = ATTR_COUNT_BASIC; // defaults for the fixed pipeline (== 3)
+
 	if (attrData && attrCount > ATTR_TEXCOORD && attrData[ATTR_TEXCOORD]) delete[] attrData[ATTR_TEXCOORD];
 	if (attrData && attrCount > ATTR_BONE_ID && attrData[ATTR_BONE_ID]) delete[] attrData[ATTR_BONE_ID];
 	if (attrData && attrCount > ATTR_BONE_WEIGHT && attrData[ATTR_BONE_WEIGHT]) delete[] attrData[ATTR_BONE_WEIGHT];
@@ -157,26 +165,40 @@ void C3dglMesh::getBoundingVolume(const aiMesh* pMesh, size_t nVertices, glm::ve
 	}
 }
 
-void C3dglMesh::create(const aiMesh* pMesh, const GLint* attrId, size_t attrCount)
+void C3dglMesh::create(const aiMesh* pMesh, C3dglProgram* pProgram)
 {
 	if (!pMesh) return;
-	if (attrCount > c_attrCount)
-		return;		// this should never happen!
 
-	// attribute signature for fixed pipeline (count = 3)
-	static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
+	if (pProgram == NULL)
+		pProgram = C3dglProgram::getCurrentProgram();
+
+	const GLint* attrId = NULL;
+	size_t attrCount = 0;
+	if (pProgram)
+	{
+		attrId = pProgram->getShaderSignature();
+		attrCount = pProgram->getShaderSignatureLength();
+	}
+
+	if (attrCount > getAttrCount() || getAttrCount() != ATTR_COUNT)
+	{
+		log(M3DGL_INTERNAL_ERROR);
+		return;		// this should never happen!
+	}
 
 	// collect buffered attribute data
-	void* attrData[c_attrCount];
-	size_t attrSize[c_attrCount];
-	size_t nVertices = getBuffers(pMesh, attrId ? attrId : fixedAttr, attrData, attrSize, attrCount ? attrCount : 3);
+	void* attrData[ATTR_COUNT];
+	size_t attrSize[ATTR_COUNT];
+	size_t nVertices = getBuffers(pMesh, attrId, attrCount, attrData, attrSize);
 
 	// collect index buffer data
 	void* indexData;
 	size_t indSize;
 	size_t nIndices = getIndexBuffer(pMesh, &indexData, &indSize);
 
-	create(attrId, attrCount, nVertices, nIndices, attrData, attrSize, indexData, indSize);
+	C3dglVertexAttrObject::create(attrCount, nVertices, attrData, attrSize, nIndices, indexData, indSize, pProgram);
+
+	cleanUp(attrCount, attrData, indexData);
 
 	// Additional data...
 	getBoundingVolume(pMesh, nVertices, m_aabb[0], m_aabb[1]);
@@ -186,133 +208,23 @@ void C3dglMesh::create(const aiMesh* pMesh, const GLint* attrId, size_t attrCoun
 	m_name = pMesh->mName.data;
 }
 
-void C3dglMesh::create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize)
-{
-	m_nVertices = nVertices;
-	m_nIndices = nIndices;
-
-	// create VAO
-	glGenVertexArrays(1, &m_idVAO);
-	glBindVertexArray(m_idVAO);
-
-	// generate attribute buffers, then bind them and send data to OpenGL
-	for (unsigned attr = ATTR_VERTEX; attr < (attrCount ? attrCount : 3); attr++)
-		if (attrData[attr])
-		{
-			glGenBuffers(1, &m_id[attr]);
-			glBindBuffer(GL_ARRAY_BUFFER, m_id[attr]);
-			glBufferData(GL_ARRAY_BUFFER, attrSize[attr] * nVertices, attrData[attr], GL_STATIC_DRAW);
-
-			if (attrCount > 0)
-			{
-				glEnableVertexAttribArray(attrId[attr]);
-				static GLint attribMult[] = { 3, 3, 2, 3, 3, 3, MAX_BONES_PER_VERTEX, MAX_BONES_PER_VERTEX };
-				if (attr == ATTR_BONE_ID)
-					glVertexAttribIPointer(attrId[attr], attribMult[attr], GL_INT, 0, 0);
-				else
-					glVertexAttribPointer(attrId[attr], attribMult[attr], GL_FLOAT, GL_FALSE, 0, 0);
-			}
-			else
-			{
-				static GLint fixedAttr[] = { GL_VERTEX_ARRAY, GL_NORMAL_ARRAY, GL_TEXTURE_COORD_ARRAY };
-				glEnableClientState(fixedAttr[attr]);
-				switch (attr)
-				{
-				case ATTR_VERTEX: glVertexPointer(3, GL_FLOAT, 0, 0); break;
-				case ATTR_NORMAL: glNormalPointer(GL_FLOAT, 0, 0); break;
-				case ATTR_TEXCOORD: glTexCoordPointer(2, GL_FLOAT, 0, 0); break;
-				}
-			}
-		}
-
-	glGenBuffers(1, &m_idIndex);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_idIndex);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indSize * m_nIndices, indexData, GL_STATIC_DRAW);
-	cleanUp(attrData, indexData, attrCount ? attrCount : 3);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-}
-
-
-void C3dglMesh::render() const
-{
-	glBindVertexArray(m_idVAO);
-	if (m_instances == 1)
-		glDrawElements(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0);
-	else
-		glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0, (GLsizei)m_instances);
-	glBindVertexArray(0);
-}
-
-GLuint C3dglMesh::setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor, GLenum usage)
-{
-	m_instances = instances;
-	m_divisor = divisor;
-
-	if (stride == 0)
-		switch (type)
-		{
-		case GL_FLOAT: stride = size * sizeof(float); break;
-		case GL_INT:
-		case GL_UNSIGNED_INT: stride = size * sizeof(float); break;
-		}
-
-	glBindVertexArray(m_idVAO);
-
-	GLuint bufferId;
-
-	glGenBuffers(1, &bufferId);
-	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
-	glBufferData(GL_ARRAY_BUFFER, instances * stride, data, usage);
-
-	glEnableVertexAttribArray(attrLocation);
-	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, 0);
-	glVertexAttribDivisor(attrLocation, divisor);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	return bufferId;
-}
-
-void C3dglMesh::addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset)
-{
-	glBindVertexArray(m_idVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
-
-	glEnableVertexAttribArray(attrLocation);
-	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, reinterpret_cast<void*>(offset));
-	glVertexAttribDivisor(attrLocation, m_divisor);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-void C3dglMesh::destroy()
-{
-	for (unsigned attr = ATTR_VERTEX; attr < c_attrCount; attr++)
-		glDeleteBuffers(1, &m_id[attr]);
-	std::fill(m_id, m_id + c_attrCount, 0);
-	glDeleteBuffers(1, &m_idIndex); m_idIndex = 0;
-	glDeleteVertexArrays(1, &m_idVAO); m_idVAO = 0;
-}
-
 size_t C3dglMesh::getAttrData(enum ATTRIB_STD attr, void** ppData, size_t* indSize) const
 {
+	if (getAttrCount() != ATTR_COUNT)
+	{
+		log(M3DGL_INTERNAL_ERROR);
+		return 0;		// this should never happen!
+	}
+
 	*ppData = NULL;
 	*indSize = NULL;
 	if (!m_pMesh) return 0;
 
 	GLint attrId[] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 	attrId[attr] = 1;
-	void* attrData[c_attrCount];
-	size_t attrSize[c_attrCount];
-	size_t nVertices = getBuffers(m_pMesh, attrId, attrData, attrSize, c_attrCount);
+	void* attrData[ATTR_COUNT];
+	size_t attrSize[ATTR_COUNT];
+	size_t nVertices = getBuffers(m_pMesh, attrId, getAttrCount(), attrData, attrSize);
 	*ppData = attrData[attr];
 	*indSize = attrSize[attr];
 	return nVertices;

@@ -56,6 +56,8 @@ namespace _3dgl
 		M3DGL_WARNING_GENERIC = 200,
 		M3DGL_WARNING_UNIFORM_NOT_FOUND,				// shader.cpp
 		M3DGL_WARNING_UNIFORM_NOT_REGISTERED,
+		M3DGL_WARNING_ATTRIBUTE_NOT_FOUND,
+		M3DGL_WARNING_ATTRIBUTE_NOT_REGISTERED,
 		M3DGL_WARNING_NO_PROGRAMMABLE_PIPELINE,			// model.cpp
 		M3DGL_WARNING_VERTEX_COORDS_NOT_IMPLEMENTED,
 		M3DGL_WARNING_NORMAL_COORDS_NOT_IMPLEMENTED,
@@ -101,6 +103,8 @@ namespace _3dgl
 		M3DGL_ERROR_GENERIC = 500,
 		M3DGL_ERROR_TYPE_MISMATCH,
 		M3DGL_ERROR_WRONG_STD_UNIFORM_ID,
+		M3DGL_ERROR_INSTANCING_ATTR_NOT_FOUND,			// VAO.cpp
+		M3DGL_ERROR_INSTANCING_CANNOT_BE_CHANGED,
 		M3DGL_ERROR_AI,									// model.cpp
 		M3DGL_ERROR_COMPILATION,						// shader.cpp
 		M3DGL_ERROR_LINKING,
@@ -111,6 +115,8 @@ namespace _3dgl
 		M3DGL_ERROR_SHADER_NOT_CREATED,
 		M3DGL_ERROR_PROGRAM_NOT_CREATED,
 		M3DGL_ERROR_UNKNOWN_LINKING_ERROR,
+
+		M3DGL_INTERNAL_ERROR
 	};
 
 	class MY3DGL_API C3dglLogger
@@ -124,7 +130,7 @@ namespace _3dgl
 
 		static unsigned c_options;
 	public:
-		// Logging options. Default is: LOGGER_COLLAPSE_MESSAGES. Use any combination with an '|' operator
+		// Logging options. Default is C3dglLogger::LOGGER_COLLAPSE_MESSAGES. Use any combination with an '|' operator
 		enum { LOGGER_COLLAPSE_MESSAGES = 1, LOGGER_USE_MESH_NAMES = 2, LOGGER_SHOW_ASSIMP_MESSAGES = 4, LOGGER_SHOW_ASSIMP_DEBUG_MESSAGES = 8, LOGGER_SHOW_ASSIMP_VERBOSE_MESSAGES = 12 };
 		static void setOptions(unsigned options) { c_options = options;  }
 		static unsigned getOptions() { return c_options;  }

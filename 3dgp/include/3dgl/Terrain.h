@@ -36,40 +36,27 @@ freely, subject to the following restrictions:
 // Include GLM core features
 #include "../glm/glm.hpp"
 
-#include "Object.h"
-#include "CommonDef.h"
+#include "VAO.h"
 
 namespace _3dgl
 {
 	class C3dglProgram;
 	class C3dglMesh;
 
-	class MY3DGL_API C3dglTerrain : public C3dglObject
+	class MY3DGL_API C3dglTerrain : public C3dglVertexAttrObject
 	{
-		std::string m_name;	// model name (derived from the filename)
-
-		// shader-related data
-		C3dglProgram* m_pProgram;					// program responsible for loading the model; NULL if fixed pipeline or no model loaded
-		C3dglProgram* m_pLastProgramUsed;			// the last program used for rendering; NULL if never rendered since loading the model
+		std::string m_name;			// model name (derived from the filename)
 
 		// height map size (may be rectangular)
 		float* m_heights;			// heights
 		int m_nSizeX, m_nSizeZ;		// size (may be rectangular)
 		float m_fScaleHeight;		// heigth (vertical) scale
 
-		// VAO (Vertex Array Object) id
-		GLuint m_idVAO;
-
-		// Attribute Buffer Ids
-		static const size_t c_attrCount = ATTR_COLOR;	// terrains will only ever create 5 sttribute types
-		GLuint m_id[c_attrCount];	// mote: only 5 attributes created by terrain objects (no colour or bone attr)
-		GLuint m_idIndex;			// index buffer id
-
 	protected:
 		void createHeightMap(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
-		size_t getBuffers(float** attrData, size_t* attrSize, size_t attrCount);
+		size_t getBuffers(size_t attrCount, float** attrData, size_t* attrSize);
 		size_t getIndexBuffer(GLuint** indexData, size_t* indSize);
-		void cleanUp(float** attrData, GLuint* indexData, size_t attrCount);		// call after getBuffers well data no longer required
+		void cleanUp(size_t attrCount, float** attrData, GLuint* indexData);		// call after getBuffers well data no longer required
 
 	public:
 		C3dglTerrain();
@@ -81,21 +68,18 @@ namespace _3dgl
 		float getHeight(int x, int z);
 		float getInterpolatedHeight(float x, float z);
 
-		bool load(const std::string filename, float scaleHeight);
-		void create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes);
-//		void create(const GLint* attrId, size_t attrCount, size_t nVertices, size_t nIndices, void** attrData, size_t* attrSize, void* indexData, size_t indSize);
+		bool load(const std::string filename, float scaleHeight, C3dglProgram* pProgram = NULL);
+		void create(int nSizeX, int nSizeZ, float fScaleHeight, void* pBytes, C3dglProgram* pProgram = NULL);
 		void destroy();
-
-		void render(glm::mat4 matrix);
-
+				
 		std::string getName() const { return "Terrain (" + m_name + ")"; }
 
 		friend bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
-		friend bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh);
+		friend bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh, C3dglProgram* pProgram);
 	};
 	
 	bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
-	bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh);
+	bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh, C3dglProgram* pProgram = NULL);
 }; // namespace _3dgl
 
 #endif
