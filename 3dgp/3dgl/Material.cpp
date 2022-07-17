@@ -80,13 +80,19 @@ void C3dglMaterial::render(C3dglProgram *pProgram) const
 		}
 	}
 
-	glm::vec3 vec;
-	if (getAmbient(vec)) pProgram->sendUniform(UNI_MAT_AMBIENT, vec);
-	if (getDiffuse(vec)) pProgram->sendUniform(UNI_MAT_DIFFUSE, vec);
-	if (getSpecular(vec)) pProgram->sendUniform(UNI_MAT_SPECULAR, vec);
-	if (getEmissive(vec)) pProgram->sendUniform(UNI_MAT_EMISSIVE, vec);
-	float v;
-	if (getShininess(v)) pProgram->sendUniform(UNI_MAT_SHININESS, vec);
+	if (!pProgram)
+		pProgram = C3dglProgram::getCurrentProgram();
+
+	if (pProgram)
+	{
+		glm::vec3 vec;
+		if (getAmbient(vec)) pProgram->sendUniform(UNI_MAT_AMBIENT, vec);
+		if (getDiffuse(vec)) pProgram->sendUniform(UNI_MAT_DIFFUSE, vec);
+		if (getSpecular(vec)) pProgram->sendUniform(UNI_MAT_SPECULAR, vec);
+		if (getEmissive(vec)) pProgram->sendUniform(UNI_MAT_EMISSIVE, vec);
+		float v;
+		if (getShininess(v)) pProgram->sendUniform(UNI_MAT_SHININESS, vec);
+	}
 }
 
 void C3dglMaterial::loadTexture(GLenum texUnit, std::string strDefTexPath, std::string strPath)
