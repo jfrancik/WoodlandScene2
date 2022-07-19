@@ -272,10 +272,12 @@ void onRender()
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
 	float pitch = getPitch(matrixView);
 	matrixView = rotate(translate(rotate(mat4(1),
-		pitch, vec3(1, 0, 0)),	// switch tilt off
-		_vel * deltaTime),	// animate camera motion (controlled by WASD keys)
-		-pitch, vec3(1, 0, 0))	// switch tilt on
+		pitch, vec3(1, 0, 0)),	// switch the pitch off
+		_vel * deltaTime),		// animate camera motion (controlled by WASD keys)
+		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
+
+	cout << degrees(getRoll(matrixView)) << endl;
 
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -398,17 +400,19 @@ void onMotion(int x, int y)
 {
 	glutWarpPointer(glutGet(GLUT_WINDOW_WIDTH) / 2, glutGet(GLUT_WINDOW_HEIGHT) / 2);
 
-	// find delta (change to) pan & tilt
+	// find delta (change to) pan & pitch
 	float deltaYaw = 0.005f * (x - glutGet(GLUT_WINDOW_WIDTH) / 2);
 	float deltaPitch = 0.005f * (y - glutGet(GLUT_WINDOW_HEIGHT) / 2);
 
 	if (abs(deltaYaw) > 0.3f || abs(deltaPitch) > 0.3f)
 		return;	// avoid warping side-effects
 
-	// View = Tilt * DeltaTilt * DeltaPan * Tilt^-1 * View;
+	// View = Pitch * DeltaPitch * DeltaYaw * Pitch^-1 * View;
+	constexpr float maxPitch = radians(80.f);
 	float pitch = getPitch(matrixView);
+	float newPitch = glm::clamp(pitch + deltaPitch, -maxPitch, maxPitch);
 	matrixView = rotate(rotate(rotate(mat4(1.f),
-		pitch + deltaPitch, vec3(1.f, 0.f, 0.f)), 
+		newPitch, vec3(1.f, 0.f, 0.f)),
 		deltaYaw, vec3(0.f, 1.f, 0.f)), 
 		-pitch, vec3(1.f, 0.f, 0.f)) 
 		* matrixView;

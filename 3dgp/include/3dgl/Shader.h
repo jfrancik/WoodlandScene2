@@ -131,6 +131,7 @@ namespace _3dgl
 		// Usage: sendUniform("uniform-name", value);
 		// single values
 		bool sendUniform(std::string name, GLfloat);
+		bool sendUniform(std::string name, double d) { return sendUniform(name, static_cast<float>(d)); }
 		bool sendUniform(std::string name, GLint);
 		bool sendUniform(std::string name, GLuint);
 		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
@@ -152,6 +153,7 @@ namespace _3dgl
 		// Usage: sendUniform(location-code, value);
 		// single values
 		void sendUniform(GLint location, GLfloat);
+		void sendUniform(GLint location, double d) { return sendUniform(location, static_cast<float>(d)); }
 		void sendUniform(GLint location, GLint);
 		void sendUniform(GLint location, GLuint);
 		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
@@ -171,7 +173,7 @@ namespace _3dgl
 
 		// Sending arrays using location names
 		// Usage: sendUniform("location-name", array address, array count);
-		// single values
+		// Note there is no option to send arrays of doubles
 		bool sendUniform(std::string name, GLfloat*, size_t count);
 		bool sendUniform(std::string name, GLint*, size_t count);
 		bool sendUniform(std::string name, GLuint*, size_t count);
@@ -192,7 +194,7 @@ namespace _3dgl
 
 		// Sending arrays using location ids
 		// Usage: sendUniform(location-code, array address, array count);
-		// single values
+		// Note there is no option to send arrays of doubles
 		void sendUniform(GLint location, GLfloat*, size_t count);
 		void sendUniform(GLint location, GLint*, size_t count);
 		void sendUniform(GLint location, GLuint*, size_t count);
@@ -215,6 +217,7 @@ namespace _3dgl
 		// Usage: sendUniform("location-name", index, value);
 		// single values
 		bool sendUniform(std::string name, size_t index, GLfloat);
+		bool sendUniform(std::string name, size_t index, double d) { return sendUniform(name, index, static_cast<float>(d)); }
 		bool sendUniform(std::string name, size_t index, GLint);
 		bool sendUniform(std::string name, size_t index, GLuint);
 		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
@@ -234,6 +237,7 @@ namespace _3dgl
 
 		// send a standard uniform using one of the UNI_STD values
 		bool sendUniform(enum UNI_STD stdloc, GLfloat v);
+		bool sendUniform(enum UNI_STD stdloc, double d) { return sendUniform(stdloc, static_cast<float>(d)); }
 		bool sendUniform(enum UNI_STD stdloc, glm::vec2 v);
 		bool sendUniform(enum UNI_STD stdloc, glm::vec3 v);
 		bool sendUniform(enum UNI_STD stdloc, glm::vec4 v);

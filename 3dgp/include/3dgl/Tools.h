@@ -47,19 +47,19 @@ namespace _3dgl
 	// pass the matrixView to get the current camera pitch
 	float getPitch(glm::mat4 m)
 	{
-		return fmod(atan2(-m[2][1], m[2][2]) + glm::pi<float>() + glm::half_pi<float>(), glm::pi<float>()) - glm::half_pi<float>();
+		return atan2(m[1][2], sqrt(m[0][2] * m[0][2] + m[2][2] * m[2][2]));
 	}
 
 	// pass the matrixView to get the current camera yaw
 	float getYaw(glm::mat4 m)
 	{
-		return atan2(m[2][0], m[0][0]);
+		return atan2(m[2][2], -m[0][2]);
 	}
 
 	// pass the matrixView to get the current camera roll
 	float getRoll(glm::mat4 m)
 	{
-		return atan2(-m[1][0], m[1][1]);
+		return atan2(m[1][0], sqrt(m[0][0] * m[0][0] + m[2][0] * m[2][0]));
 	}
 }; // namespace _3dgl
 
