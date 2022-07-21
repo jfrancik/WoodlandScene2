@@ -185,10 +185,6 @@ bool init()
 	return true;
 }
 
-void done()
-{
-}
-
 void renderScene(mat4& matrixView, float time, float deltaTime)
 {
 	mat4 m;
@@ -276,8 +272,6 @@ void onRender()
 		_vel * deltaTime),		// animate camera motion (controlled by WASD keys)
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
-
-	cout << degrees(getRoll(matrixView)) << endl;
 
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -433,9 +427,6 @@ int main(int argc, char **argv)
 	glutInitWindowSize(1280, 720);
 	glutCreateWindow("CI5520 3D Graphics Programming");
 
-	// default logging options
-	C3dglLogger::setOptions(C3dglLogger::LOGGER_COLLAPSE_MESSAGES);
-
 	// init glew
 	GLenum err = glewInit();
 	if (GLEW_OK != err)
@@ -470,8 +461,6 @@ int main(int argc, char **argv)
 
 	// enter GLUT event processing cycle
 	glutMainLoop();
-
-	done();
 
 	return 1;
 }
