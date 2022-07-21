@@ -43,8 +43,6 @@ float accel = 4.f;		// camera acceleration
 vec3 _acc(0), _vel(0);	// camera acceleration and velocity vectors
 float _fov = 60.f;		// field of view (zoom)
 
-int level = 10;
-
 bool init()
 {
 	// rendering states
@@ -73,8 +71,6 @@ bool init()
 	if (!program.attach(FragmentShader)) return false;
 	if (!program.link()) return false;
 	if (!program.use(true)) return false;
-
-	program.sendUniform("level", level);
 
 	// glut additional setup
 	glutSetVertexAttribCoord3(program.getAttribLocation("aVertex"));
@@ -195,7 +191,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glActiveTexture(GL_TEXTURE0);
 
 	m = matrixView;
-	if (level >= 4) skybox.render(m);
+	skybox.render(m);
 
 	// setup materials for the terrain
 	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 1.0f));	// white
@@ -215,13 +211,11 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	mat4 inv = inverse(translate(matrixView, vec3(-1, 0, 1)));
 	vec3 myPos = vec3(inv[3].x, 0, inv[3].z);
 
-	if (length(myPos - wolfPos) > 0.01f || level < 10)
+	if (length(myPos - wolfPos) > 0.01f)
 	{
-		if (level >= 6) wolfVel = normalize(myPos - wolfPos) * 0.01f;
+		wolfVel = normalize(myPos - wolfPos) * 0.01f;
 		wolfPos = wolfPos + wolfVel;
 
-		// calculate the animation time
-		if (level < 9) time = 0;
 		// calculate and send bone transforms
 		std::vector<mat4> transforms;
 		wolf.getAnimData(0, time * 1.45f, transforms);// choose animation cycle & speed of animation
@@ -232,22 +226,22 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = matrixView;
 	vec3 amendY = vec3(vec3(0, terrain.getInterpolatedHeight(wolfPos.x, wolfPos.z), 0));
 	m = translate(m, wolfPos + amendY);
-	if (level >= 7) m = rotate(m, atan2(wolfVel.z, -wolfVel.x) - half_pi<float>(), vec3(0, 1, 0));
+	m = rotate(m, atan2(wolfVel.z, -wolfVel.x) - half_pi<float>(), vec3(0, 1, 0));
 	wolf.render(m);
 
 	// render the stone
 	glBindTexture(GL_TEXTURE_2D, idTexStone);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexStoneNormal);
-	program.sendUniform("bNormalMap", level >= 8);
+	program.sendUniform("bNormalMap", true);
 	m = matrixView;
 	m = translate(m, vec3(-3, terrain.getInterpolatedHeight(-3, -1), -1));
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-	if (level >= 1) stone.render(m);
+	stone.render(m);
 	program.sendUniform("bNormalMap", false);
 
 	// render the trees
-	program.sendUniform("bNormalMap", level >= 8);
+	program.sendUniform("bNormalMap", true);
 	program.sendUniform("instancing", true);
 	m = matrixView;
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
@@ -316,18 +310,6 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'd': _acc.x = -accel; break;
 	case 'e': _acc.y = accel; break;
 	case 'q': _acc.y = -accel; break;
-	
-	case '`': level = 0; program.sendUniform("level", level); break;
-	case '1': level = 1; program.sendUniform("level", level); break;
-	case '2': level = 2; program.sendUniform("level", level); break;
-	case '3': level = 3; program.sendUniform("level", level); break;
-	case '4': level = 4; program.sendUniform("level", level); break;
-	case '5': level = 5; program.sendUniform("level", level); break;
-	case '6': level = 6; program.sendUniform("level", level); break;
-	case '7': level = 7; program.sendUniform("level", level); break;
-	case '8': level = 8; program.sendUniform("level", level); break;
-	case '9': level = 9; program.sendUniform("level", level); break;
-	case '0': level = 10; program.sendUniform("level", level); break;
 	}
 }
 

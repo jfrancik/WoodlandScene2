@@ -1,7 +1,5 @@
 #version 330
 
-uniform int level;
-
 uniform mat4 matrixView;
 uniform vec3 materialAmbient;
 uniform vec3 materialDiffuse;
@@ -56,7 +54,6 @@ void main(void)
 
 	outColor = color;
 	outColor += DirectionalLight(lightDir);
-	if (level >= 3) outColor *= texture(texture0, texCoord0);
-	if (level >= 5) outColor = mix(vec4(fogColour, 1), outColor, fogFactor);
-	if (level == 2) outColor = vec4(0, 0, 0, 1);
+	outColor *= texture(texture0, texCoord0);
+	outColor = mix(vec4(fogColour, 1), outColor, fogFactor);
 }
