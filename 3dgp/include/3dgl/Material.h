@@ -32,9 +32,6 @@ freely, subject to the following restrictions:
 #ifndef __3dglMaterial_h_
 #define __3dglMaterial_h_
 
-// Include GLM core features
-#include "../glm/glm.hpp"
-
 // Include 3DGL API import/export settings
 #include "3dglapi.h"
 
@@ -59,6 +56,9 @@ namespace _3dgl
 		bool m_bAmb, m_bDiff, m_bSpec, m_bEmiss, m_bShininess;
 		glm::vec3 m_amb, m_diff, m_spec, m_emiss;
 		float m_shininess;
+		mutable glm::vec3 m_back_amb, m_back_diff, m_back_spec, m_back_emiss;
+		mutable float m_back_shininess;
+		mutable unsigned m_back_idTexture[GL_TEXTURE31 - GL_TEXTURE0 + 1];
 
 		static unsigned c_idTexBlank;
 
@@ -68,6 +68,7 @@ namespace _3dgl
 		void destroy();
 
 		void render(C3dglProgram*) const;
+		void postRender(C3dglProgram*) const;
 
 		bool getAmbient(glm::vec3& val)	const	{ if (!m_bAmb) return false; val = m_amb; return true;  }
 		bool getDiffuse(glm::vec3& val)	const	{ if (!m_bDiff) return false; val = m_diff; return true; }
@@ -75,9 +76,14 @@ namespace _3dgl
 		bool getEmissive(glm::vec3& val) const	{ if (!m_bEmiss) return false; val = m_emiss; return true; }
 		bool getShininess(float& val) const		{ if (!m_bShininess) return false; val = m_shininess; return true; }
 
-		bool getTexture(GLenum texUnit, unsigned& idTex) const { unsigned i = m_idTexture[texUnit - GL_TEXTURE0];  if (i == 0xffffffff) return false; idTex = i; return true; }
-		bool getTexture(unsigned& idTex) const	 { return getTexture(GL_TEXTURE0, idTex); }
+		bool getAmbient() const					{ return m_bAmb; }
+		bool getDiffuse() const					{ return m_bDiff; }
+		bool getSpecular() const				{ return m_bSpec; }
+		bool getEmissive() const				{ return m_bEmiss; }
+		bool getShininess() const				{ return m_bShininess; }
 
+		bool getTexture(GLenum texUnit, unsigned& idTex) const { unsigned i = m_idTexture[texUnit - GL_TEXTURE0];  if (i == 0xffffffff) return false; idTex = i; return true; }
+		bool getTexture(GLenum texUnit) const { return (m_idTexture[texUnit - GL_TEXTURE0] != 0xffffffff); }
 
 		void setAmbient(glm::vec3 colour)	{ m_bAmb = true; m_amb = colour; }
 		void setDiffuse(glm::vec3 colour)	{ m_bDiff = true; m_diff = colour; }

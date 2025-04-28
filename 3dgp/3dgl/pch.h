@@ -3,7 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 
-A very simple Sky Box class.
+Implementation of an Animation loader/solver class
+Uses AssImp (Open Asset Import Library) Library to interpret animation information
 ----------------------------------------------------------------------------------
 This software is provided 'as-is', without any express or implied
 warranty. In no event will the authors be held liable for any damages
@@ -26,31 +27,39 @@ freely, subject to the following restrictions:
    Jarek Francik
    jarek@kingston.ac.uk
 *********************************************************************************/
-#ifndef _3dglSkyBox_H
-#define _3dglSkyBox_H
 
-// Include GLM core features
+// pch.h: This is a precompiled header file, for standard system include files,
+// or project specific include files that are used frequently, but are changed infrequently.
+// Files listed below are compiled only once, improving build performance for future builds.
+// This also affects IntelliSense performance, including code completion and many code browsing features.
+// However, files listed here are ALL re-compiled if any one of them is updated between builds.
+// Do not add files here that you will be updating frequently as this negates the performance advantage.
+
+#ifndef PCH_H
+#define PCH_H
+
+#pragma once
+
+// The OpenGL Extension Wrangler Library
+#include <GL/glew.h>
+
+// Standard Libraries
+#include <vector>
+#include <map>
+#include <set>
+#include <string>
+#include <iostream>
+#include <fstream>
+
+// GLM core features
 #include "../glm/glm.hpp"
 
-#include "VAO.h"
+// Include GLM additional features
+#include "../glm/vec3.hpp"
+#include "../glm/vec4.hpp"
+#include "../glm/mat4x4.hpp"
+#include "../glm/gtc/constants.hpp"
+#include "../glm/gtc/type_ptr.hpp"
 
-namespace _3dgl
-{
-    class C3dglProgram;
+#endif //PCH_H
 
-    class MY3DGL_API C3dglSkyBox : public C3dglVertexAttrObject
-    {
-        unsigned int  m_idTex[6];
-
-    public:
-        C3dglSkyBox();
-
-	    bool load(const char* pFd, const char* pRt, const char* pBk, const char* pLt, const char* pUp, const char* pDn, C3dglProgram *pProgram = NULL);
-	    
-        void render(glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
-        virtual void render(GLsizei instances = 1) const;
-
-        std::string getName() const { return "SkyBox"; }
-    };
-}
-#endif

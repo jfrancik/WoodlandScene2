@@ -3,8 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
+#include "pch.h"
 #include <iostream>
-#include <GL/glew.h>
 #include <3dgl/Mesh.h>
 #include <3dgl/Model.h>
 #include <3dgl/Shader.h>
@@ -46,7 +46,11 @@ size_t C3dglMesh::getBuffers(const aiMesh* pMesh, const GLint* attrId, size_t at
 
 	// Possible warnings...
 	if (nVertices == 0) { log(M3DGL_WARNING_NO_VERTICES); return 0; }
-	if (nUVComponents > 0 && nUVComponents != 2) log(M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING, nUVComponents);
+	if (nUVComponents > 0 && nUVComponents != 2)
+	{
+		log(M3DGL_WARNING_COMPATIBLE_TEXTURE_COORDS_MISSING, nUVComponents);
+		nUVComponents = 2;	// bug-fix (caused occasional crashes)
+	}
 
 	// Convert texture coordinates to occupy contageous memory space
 	GLfloat* pTexCoords = NULL;

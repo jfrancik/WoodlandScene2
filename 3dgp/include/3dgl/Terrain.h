@@ -75,11 +75,8 @@ namespace _3dgl
 		std::string getName() const { return "Terrain (" + m_name + ")"; }
 
 		friend bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
-		friend bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh, C3dglProgram* pProgram);
+		friend bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh* pMesh, C3dglProgram* pProgram);
 	};
-	
-	bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
-	bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh& mesh, C3dglProgram* pProgram = NULL);
 }; // namespace _3dgl
 
 #endif

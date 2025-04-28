@@ -3,8 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
+#include "pch.h"
 #include <iostream>
-#include <GL/glew.h>
 #include <3dgl/Model.h>
 #include <3dgl/Shader.h>
 
@@ -119,7 +119,7 @@ void C3dglModel::destroy()
 	}
 }
 
-void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m, C3dglProgram* pProgram) const
+void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m, GLsizei instances, C3dglProgram* pProgram) const
 {
 	m *= glm::transpose(glm::make_mat4((GLfloat*)&pNode->mTransformation));
 
@@ -130,27 +130,29 @@ void C3dglModel::renderNode(aiNode* pNode, glm::mat4 m, C3dglProgram* pProgram) 
 		const C3dglMaterial* pMaterial = pMesh->getMaterial();
 		if (pMaterial)
 			pMaterial->render(pProgram);
-		pMesh->render(m, pProgram);
+		pMesh->render(m, instances, pProgram);
+		if (pMaterial)
+			pMaterial->postRender(pProgram);
 	}
 
 	// draw all children
 	for (aiNode* p : std::vector<aiNode*>(pNode->mChildren, pNode->mChildren + pNode->mNumChildren))
-		renderNode(p, m, pProgram);
+		renderNode(p, m, instances, pProgram);
 }
 
-void C3dglModel::render(glm::mat4 matrix, C3dglProgram* pProgram) const
+void C3dglModel::render(glm::mat4 matrix, GLsizei instances, C3dglProgram* pProgram) const
 { 
 	if (m_pScene->mRootNode) 
-		renderNode(m_pScene->mRootNode, matrix, pProgram);
+		renderNode(m_pScene->mRootNode, matrix, instances, pProgram);
 }
 
-void C3dglModel::render(unsigned iNode, glm::mat4 matrix, C3dglProgram* pProgram) const
+void C3dglModel::render(unsigned iNode, glm::mat4 matrix, GLsizei instances, C3dglProgram* pProgram) const
 {
 	// update transform
 	matrix *= glm::transpose(glm::make_mat4((GLfloat*)&m_pScene->mRootNode->mTransformation));
 
 	if (iNode <= getMainNodeCount())
-		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix, pProgram);
+		renderNode(m_pScene->mRootNode->mChildren[iNode], matrix, instances, pProgram);
 }
 
 unsigned C3dglModel::getMainNodeCount() const
@@ -158,16 +160,38 @@ unsigned C3dglModel::getMainNodeCount() const
 	return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; 
 }
 
-void C3dglModel::setupInstancingData(GLint attrLocation, size_t instances, GLint size, float* data, GLuint divisor)
+void C3dglModel::createVertexBuffers(GLint attrLocation, size_t instances, GLint size, float* data, GLsizei stride, GLuint divisor, GLenum usage)
 {
 	for (int i = 0; i < getMeshCount(); i++)
-		getMesh(i)->setupInstancingData(attrLocation, instances, size, GL_FLOAT, size * sizeof(float), data, divisor);
+		getMesh(i)->createVertexBuffer(attrLocation, instances, size, data, stride, divisor, usage);
 }
 
-void C3dglModel::setupInstancingData(GLint attrLocation, size_t instances, GLint size, int* data, GLuint divisor)
+void C3dglModel::createVertexBuffers(GLint attrLocation, size_t instances, GLint size, int* data, GLsizei stride, GLuint divisor, GLenum usage)
 {
 	for (int i = 0; i < getMeshCount(); i++)
-		getMesh(i)->setupInstancingData(attrLocation, instances, size, GL_INT, size * sizeof(int), data, divisor);
+		getMesh(i)->createVertexBuffer(attrLocation, instances, size, data, stride, divisor, usage);
+}
+
+void C3dglModel::addAttribPointers(GLint attrLocation, GLint attrFirstLocation, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor, GLenum usage)
+{
+	for (int i = 0; i < getMeshCount(); i++)
+	{
+		GLuint bufferId;
+		C3dglMesh* pMesh = getMesh(i);
+		pMesh->getVertexBufferId(attrFirstLocation, bufferId);
+		pMesh->addAttribPointer(attrLocation, bufferId, instances, size, stride, offset, divisor, usage);
+	}
+}
+
+void C3dglModel::addAttribIPointers(GLint attrLocation, GLint attrFirstLocation, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor, GLenum usage)
+{
+	for (int i = 0; i < getMeshCount(); i++)
+	{
+		GLuint bufferId;
+		C3dglMesh* pMesh = getMesh(i);
+		pMesh->getVertexBufferId(attrFirstLocation, bufferId);
+		pMesh->addAttribIPointer(attrLocation, bufferId, instances, size, stride, offset, divisor, usage);
+	}
 }
 
 void C3dglModel::getNodeTransform(aiNode* pNode, float pMatrix[16], bool bRecursive) const

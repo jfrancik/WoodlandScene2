@@ -3,7 +3,7 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
-#include <GL/glew.h>
+#include "pch.h"
 #include <3dgl/Shader.h>
 #include <3dgl/Bitmap.h>
 #include <3dgl/SkyBox.h>
@@ -84,21 +84,26 @@ bool C3dglSkyBox::load(const char* pFd, const char* pRt, const char* pBk, const 
 	return true;
 }
 
-void C3dglSkyBox::render() const
+void C3dglSkyBox::render(GLsizei instances) const
 {
 	// disable depth-buffer write cycles - so that the skybox cannot obscure anything
 	GLboolean bDepthMask;
 	::glGetBooleanv(GL_DEPTH_WRITEMASK, &bDepthMask);
 	glDepthMask(GL_FALSE);
 
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
 	glBindVertexArray(getVAOid());
 	glActiveTexture(GL_TEXTURE0);
 	for (int i = 0; i < 6; ++i)
 	{
 		glBindTexture(GL_TEXTURE_2D, m_idTex[i]);
-		glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+		if (instances == 1)
+			glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+		else
+			glDrawArraysInstanced(GL_TRIANGLE_FAN, i * 4, 4, instances);
 	}
-	glBindVertexArray(0);
+	glBindVertexArray(prevVAO);
 
 	// enable depth-buffer write cycle
 	glDepthMask(bDepthMask);
@@ -109,5 +114,5 @@ void C3dglSkyBox::render(glm::mat4 matrix, C3dglProgram* pProgram) const
 	// send model view matrix
 	matrix[3][0] = matrix[3][1] = matrix[3][2] = 0;
 
-	C3dglVertexAttrObject::render(matrix, pProgram);
+	C3dglVertexAttrObject::render(matrix, 1, pProgram);
 }

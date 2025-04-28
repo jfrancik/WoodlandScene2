@@ -3,8 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
+#include "pch.h"
 #include <iostream>
-#include <GL/glew.h>
 #include <3dgl/VAO.h>
 #include <3dgl/Shader.h>
 
@@ -19,21 +19,25 @@ using namespace _3dgl;
 
 C3dglVertexAttrObject::C3dglVertexAttrObject(size_t attrCount) : C3dglObject(), m_attrCount(attrCount)
 {
-	m_idVBO = new GLuint[m_attrCount];
-	std::fill(m_idVBO, m_idVBO + m_attrCount, 0);
-}
-
-C3dglVertexAttrObject::C3dglVertexAttrObject(const C3dglVertexAttrObject& o) : C3dglObject(), m_attrCount(o.getAttrCount())
-{
-	m_idVBO = new GLuint[m_attrCount];
-	std::copy(o.m_idVBO, o.m_idVBO + m_attrCount, m_idVBO);
 }
 
 C3dglVertexAttrObject::~C3dglVertexAttrObject() 
 { 
 	destroy(); 
-	delete[] m_idVBO;
 }
+
+bool C3dglVertexAttrObject::getVertexBufferId(GLint attrLocation, GLuint& bufferId) const
+{
+	auto it = m_mapBuffers.find(attrLocation);
+	if (it != m_mapBuffers.end())
+	{
+		bufferId = it->second;
+		return true;
+	}
+	else
+		return false;
+}
+
 
 void C3dglVertexAttrObject::create(size_t attrCount, size_t nVertices, void** attrData, size_t* attrSize, size_t nIndices, void* indexData, size_t indSize, C3dglProgram* pProgram)
 {
@@ -70,6 +74,8 @@ void C3dglVertexAttrObject::create(size_t attrCount, size_t nVertices, void** at
 		return;			// nothing to do!
 
 	// create VAO
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
 	glGenVertexArrays(1, &m_idVAO);
 	glBindVertexArray(m_idVAO);
 
@@ -82,16 +88,13 @@ void C3dglVertexAttrObject::create(size_t attrCount, size_t nVertices, void** at
 			{
 				if (attrId[attr] == -1 || attrData[attr] == NULL)
 					continue;
-				glGenBuffers(1, &m_idVBO[attr]);
-				glBindBuffer(GL_ARRAY_BUFFER, m_idVBO[attr]);
-				glBufferData(GL_ARRAY_BUFFER, attrSize[attr] * nVertices, attrData[attr], GL_STATIC_DRAW);
+				
 
-				glEnableVertexAttribArray(attrId[attr]);
 				static GLint attribMult[] = { 3, 3, 2, 3, 3, 3, MAX_BONES_PER_VERTEX, MAX_BONES_PER_VERTEX };
-				if (attr == ATTR_BONE_ID)
-					glVertexAttribIPointer(attrId[attr], attribMult[attr], GL_INT, 0, 0);
+				if (attr != ATTR_BONE_ID)
+					createVertexBuffer(attrId[attr], nVertices, attribMult[attr], (float*)attrData[attr], (GLsizei)attrSize[attr]);
 				else
-					glVertexAttribPointer(attrId[attr], attribMult[attr], GL_FLOAT, GL_FALSE, 0, 0);
+					createVertexBuffer(attrId[attr], nVertices, attribMult[attr], (int*)attrData[attr], (GLsizei)attrSize[attr]);
 			}
 		else
 			// fixed pipeline only
@@ -100,16 +103,8 @@ void C3dglVertexAttrObject::create(size_t attrCount, size_t nVertices, void** at
 				if (attrData[attr] == NULL)
 					continue;
 
-				glGenBuffers(1, &m_idVBO[attr]);
-				glBindBuffer(GL_ARRAY_BUFFER, m_idVBO[attr]);
-				glBufferData(GL_ARRAY_BUFFER, attrSize[attr] * nVertices, attrData[attr], GL_STATIC_DRAW);
-
-				switch (attr)
-				{
-				case ATTR_VERTEX: glEnableClientState(GL_VERTEX_ARRAY); glVertexPointer(3, GL_FLOAT, 0, 0); break;
-				case ATTR_NORMAL: glEnableClientState(GL_NORMAL_ARRAY); glNormalPointer(GL_FLOAT, 0, 0); break;
-				case ATTR_TEXCOORD: glEnableClientState(GL_TEXTURE_COORD_ARRAY); glTexCoordPointer(2, GL_FLOAT, 0, 0); break;
-				}
+				const GLenum caps[] = { ATTR_VERTEX, ATTR_NORMAL, ATTR_TEXCOORD };
+				createVertexBuffer(caps[attr], nVertices, (float*)attrData[attr], (GLsizei)attrSize[attr]);
 			}
 	}
 
@@ -122,12 +117,207 @@ void C3dglVertexAttrObject::create(size_t attrCount, size_t nVertices, void** at
 	}
 
 	// Reset VAO & buffers
-	glBindVertexArray(0);
+	glBindVertexArray(prevVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void C3dglVertexAttrObject::render(glm::mat4 matrix, C3dglProgram* pProgram) const
+void C3dglVertexAttrObject::destroy()
+{
+	for (auto it = m_mapBuffers.begin(); it != m_mapBuffers.end(); it++)
+		glDeleteBuffers(1, &it->second);
+	m_mapBuffers.clear();
+	if (m_idIndex != 0)
+		glDeleteBuffers(1, &m_idIndex);
+	m_idIndex = 0;
+	if (&m_idVAO != 0)
+		glDeleteVertexArrays(1, &m_idVAO);
+	m_idVAO = 0;
+	m_nVertices = m_nIndices = 0;
+}
+
+GLuint C3dglVertexAttrObject::createVertexBuffer(GLint attrLocation, size_t instances, GLint size, float* data, GLsizei stride, GLuint divisor, GLenum usage)
+{
+	if (attrLocation == -1)
+	{
+		log(M3DGL_ERROR_ATTRIBUTE_NOT_FOUND);
+		return (GLuint)-1;
+	}
+
+	if (stride == 0) stride = size * sizeof(float);
+
+	destroyVertexBuffer(attrLocation);
+
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+
+	GLuint bufferId;
+	glGenBuffers(1, &bufferId);
+	m_mapBuffers[attrLocation] = bufferId;
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+	glBufferData(GL_ARRAY_BUFFER, instances * stride, data, usage);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribPointer(attrLocation, size, GL_FLOAT, GL_FALSE, stride, 0);
+	if (divisor) glVertexAttribDivisor(attrLocation, divisor);
+
+	// Reset VAO & buffers
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return bufferId;
+}
+
+GLuint C3dglVertexAttrObject::createVertexBuffer(GLint attrLocation, size_t instances, GLint size, int* data, GLsizei stride, GLuint divisor, GLenum usage)
+{
+	if (attrLocation == -1)
+	{
+		log(M3DGL_ERROR_ATTRIBUTE_NOT_FOUND);
+		return (GLuint)-1;
+	}
+
+	if (stride == 0)
+		stride = size * sizeof(int);
+
+	destroyVertexBuffer(attrLocation);
+
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+
+	GLuint bufferId;
+	glGenBuffers(1, &bufferId);
+	m_mapBuffers[attrLocation] = bufferId;
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+	glBufferData(GL_ARRAY_BUFFER, instances * stride, data, usage);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribIPointer(attrLocation, size, GL_INT, stride, 0);
+	if (divisor) glVertexAttribDivisor(attrLocation, divisor);
+
+	// Reset VAO & buffers
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return bufferId;
+}
+
+GLuint C3dglVertexAttrObject::createVertexBuffer(GLenum cap, size_t instances, float* data, GLsizei stride, GLenum usage)
+{
+	destroyVertexBuffer(cap);
+
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+
+	GLuint bufferId;
+	glGenBuffers(1, &bufferId);
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+
+	switch (cap)
+	{
+	case ATTR_VERTEX:
+		m_mapBuffers[GL_VERTEX_ARRAY] = bufferId;
+		if (stride == 0) stride = 3 * sizeof(float);
+		glBufferData(GL_ARRAY_BUFFER, instances * stride, data, GL_STATIC_DRAW);
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glVertexPointer(3, GL_FLOAT, stride, 0);
+		break;
+	case ATTR_NORMAL:
+		m_mapBuffers[GL_NORMAL_ARRAY] = bufferId;
+		if (stride == 0) stride = 3 * sizeof(float);
+		glBufferData(GL_ARRAY_BUFFER, instances * stride, data, GL_STATIC_DRAW);
+		glEnableClientState(GL_NORMAL_ARRAY);
+		glNormalPointer(GL_FLOAT, stride, 0);
+		break;
+	case ATTR_TEXCOORD:
+		m_mapBuffers[GL_TEXTURE_COORD_ARRAY] = bufferId;
+		if (stride == 0) stride = 2 * sizeof(float);	// not always true; if this doesn't work, just provide the actual value of strride (!=0)
+		glBufferData(GL_ARRAY_BUFFER, instances * stride, data, GL_STATIC_DRAW);
+		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		glTexCoordPointer(2, GL_FLOAT, stride, 0);
+		break;
+	default:
+		log(M3DGL_ERROR_ATTRIBUTE_NOT_FOUND);
+		glDeleteBuffers(1, &bufferId);
+		break;
+	}
+
+	// Reset VAO & buffers
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return bufferId;
+}
+
+void C3dglVertexAttrObject::addAttribPointer(GLint attrLocation, GLuint bufferId, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor, GLenum usage)
+{
+	if (attrLocation == -1)
+	{
+		log(M3DGL_ERROR_ATTRIBUTE_NOT_FOUND);
+		return;
+	}
+
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribPointer(attrLocation, size, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(offset));
+	if (divisor) glVertexAttribDivisor(attrLocation, divisor);
+
+	// Reset VAO & buffers
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void C3dglVertexAttrObject::addAttribIPointer(GLint attrLocation, GLuint bufferId, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor, GLenum usage)
+{
+	if (attrLocation == -1)
+	{
+		log(M3DGL_ERROR_ATTRIBUTE_NOT_FOUND);
+		return;
+	}
+
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+
+	glEnableVertexAttribArray(attrLocation);
+	glVertexAttribIPointer(attrLocation, size, GL_INT, stride, reinterpret_cast<void*>(offset));
+	if (divisor) glVertexAttribDivisor(attrLocation, divisor);
+
+	// Reset VAO & buffers
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void C3dglVertexAttrObject::destroyVertexBuffer(GLint attrLocation)
+{
+	auto it = m_mapBuffers.find(attrLocation);
+	if (it != m_mapBuffers.end())
+	{
+		glDeleteBuffers(1, &it->second);
+		m_mapBuffers.erase(it);
+	}
+}
+
+void C3dglVertexAttrObject::render(glm::mat4 matrix, GLsizei instances, C3dglProgram* pProgram) const
 {
 	// check if a shading program is active
 	if (pProgram == NULL)
@@ -169,99 +359,20 @@ void C3dglVertexAttrObject::render(glm::mat4 matrix, C3dglProgram* pProgram) con
 		glMultMatrixf((GLfloat*)&matrix);
 	}
 
-	render();
+	render(instances);
 }
 
-void C3dglVertexAttrObject::render() const
+void C3dglVertexAttrObject::render(GLsizei instances) const
 {
-	glBindVertexArray(m_idVAO);
-	if (m_instances == 1)
+	GLuint prevVAO;
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&prevVAO);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(m_idVAO);
+	if (instances == 1)
 		glDrawElements(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0);
 	else
-		glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0, (GLsizei)m_instances);
-	glBindVertexArray(0);
+		glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)m_nIndices, GL_UNSIGNED_INT, 0, instances);
+	if (prevVAO != m_idVAO)
+		glBindVertexArray(prevVAO);
 }
-
-void C3dglVertexAttrObject::destroy()
-{
-	for (unsigned attr = 0; attr < getAttrCount(); attr++)
-		if (m_idVBO[attr] != 0)
-			glDeleteBuffers(1, &m_idVBO[attr]);
-	std::fill(m_idVBO, m_idVBO + getAttrCount(), 0);
-	if (m_idIndex != 0) 
-		glDeleteBuffers(1, &m_idIndex); 
-	m_idIndex = 0;
-	if (&m_idVAO != 0)
-		glDeleteVertexArrays(1, &m_idVAO); 
-	m_idVAO = 0;
-	m_nVertices = m_nIndices = 0;
-}
-
-GLuint C3dglVertexAttrObject::setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor, GLenum usage)
-{
-	if (attrLocation == -1)
-	{
-		log(M3DGL_ERROR_INSTANCING_ATTR_NOT_FOUND);
-		return 0;
-	}
-	if (m_instances != 1 && m_instances != instances)
-	{
-		log(M3DGL_ERROR_INSTANCING_CANNOT_BE_CHANGED, m_instances, instances);
-		return 0;
-	}
-
-	m_instances = instances;
-
-	if (stride == 0)
-		switch (type)
-		{
-		case GL_FLOAT: stride = size * sizeof(float); break;
-		case GL_INT:
-		case GL_UNSIGNED_INT: stride = size * sizeof(float); break;
-		}
-
-	glBindVertexArray(m_idVAO);
-
-	GLuint bufferId;
-
-	glGenBuffers(1, &bufferId);
-	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
-	glBufferData(GL_ARRAY_BUFFER, instances * stride, data, usage);
-
-	glEnableVertexAttribArray(attrLocation);
-	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, 0);
-	glVertexAttribDivisor(attrLocation, divisor);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	return bufferId;
-}
-
-void C3dglVertexAttrObject::addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset, GLuint divisor)
-{
-	if (attrLocation == -1)
-	{
-		log(M3DGL_ERROR_INSTANCING_ATTR_NOT_FOUND);
-		return;
-	}
-
-	glBindVertexArray(m_idVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
-
-	glEnableVertexAttribArray(attrLocation);
-	glVertexAttribPointer(attrLocation, size, type, GL_FALSE, stride, reinterpret_cast<void*>(offset));
-	glVertexAttribDivisor(attrLocation, divisor);
-
-	// Reset VAO & buffers
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-void C3dglVertexAttrObject::destroyInstancingData(GLuint bufferId)
-{
-	glDeleteBuffers(1, &bufferId);
-}
-
 

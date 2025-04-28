@@ -102,18 +102,22 @@ namespace _3dgl
 
 		// Rendering
 		// render the entire model
-		void render(glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
+		void render(glm::mat4 matrix, GLsizei instances = 1, C3dglProgram* pProgram = NULL) const;
 		// render one of the main nodes - see getMainNodeCount below
-		void render(unsigned iNode, glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
+		void render(unsigned iNode, glm::mat4 matrix, GLsizei instances = 1, C3dglProgram* pProgram = NULL) const;
 		// render a single node
-		void renderNode(aiNode* pNode, glm::mat4 m, C3dglProgram* pProgram = NULL) const;
+		void renderNode(aiNode* pNode, glm::mat4 m, GLsizei instances = 1, C3dglProgram* pProgram = NULL) const;
 		// returns the count of main nodes
 		unsigned getMainNodeCount() const;
 
-		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
-		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, float* data, GLuint divisor = 1);
-		void setupInstancingData(GLint attrLocation, size_t instances, GLint size, int* data, GLuint divisor = 1);
-		
+		// Buffer creation: creates attribute buffers for each mesh
+		void createVertexBuffers(GLint attrLocation, size_t instances, GLint size, float* data, GLsizei stride = 0, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+		void createVertexBuffers(GLint attrLocation, size_t instances, GLint size, int* data, GLsizei stride = 0, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+
+		// Additional pointers: add attrib pointers (with offset) to existing buffers, for each mesh
+		void addAttribPointers(GLint attrLocation, GLint attrFirstLocation, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+		void addAttribIPointers(GLint attrLocation, GLint attrFirstLocation, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+
 		// Mesh functions
 		bool hasMeshes() const						{ return m_meshes.size() > 0; }
 		size_t getMeshCount() const					{ return m_meshes.size(); }

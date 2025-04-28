@@ -4,6 +4,8 @@ Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
 
+#include "pch.h"
+
 #include <3dgl/Logger.h>
 
 #include <iostream>
@@ -80,8 +82,7 @@ C3dglLogger::C3dglLogger()
 	operator[](M3DGL_ERROR_GENERIC) = "{}";
 	operator[](M3DGL_ERROR_TYPE_MISMATCH) = "type mismatch in uniform: {}: sending value of {} but {} was expected.";
 	operator[](M3DGL_ERROR_WRONG_STD_UNIFORM_ID) = "standard uniform index out of scope. Should be less then {}.";
-	operator[](M3DGL_ERROR_INSTANCING_ATTR_NOT_FOUND) = "instancing failed. Attribute location does not exist.";
-	operator[](M3DGL_ERROR_INSTANCING_CANNOT_BE_CHANGED) = "instancing failed. Instancing count cannot be changed. It was set to {} and cannot be changhed to {}.";
+	operator[](M3DGL_ERROR_ATTRIBUTE_NOT_FOUND) = "buffer creation failed. Attribute location does not exist.";
 	operator[](M3DGL_ERROR_AI) = "internal ASSIMP error: {}";
 	operator[](M3DGL_ERROR_COMPILATION) = "compilation error: {}";
 	operator[](M3DGL_ERROR_LINKING) = "linking error: {}";

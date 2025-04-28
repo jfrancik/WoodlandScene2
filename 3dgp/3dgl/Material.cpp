@@ -3,8 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
+#include "pch.h"
 #include <fstream>
-#include <GL/glew.h>
 #include <3dgl/Material.h>
 #include <3dgl/Bitmap.h>
 #include <3dgl/Model.h>
@@ -39,17 +39,11 @@ void C3dglMaterial::create(const aiMaterial *pMat, const char* pDefTexPath)
 		pPath = texPath.C_Str();
 	
 	unsigned int max;
-	if (AI_SUCCESS != aiGetMaterialFloatArray(pMat, AI_MATKEY_SHININESS, &m_shininess, &max))
-		m_shininess = 0;
-
-	if (AI_SUCCESS != aiGetMaterialColor(pMat, AI_MATKEY_COLOR_AMBIENT, (aiColor4D*) &m_amb))
-		m_amb = glm::vec3(1, 1, 1);
-	if (AI_SUCCESS != aiGetMaterialColor(pMat, AI_MATKEY_COLOR_DIFFUSE, (aiColor4D*)&m_diff))
-		m_diff = glm::vec3(1, 1, 1);
-	if (AI_SUCCESS != aiGetMaterialColor(pMat, AI_MATKEY_COLOR_SPECULAR, (aiColor4D*)&m_spec))
-		m_spec = (m_shininess > 1) ? glm::vec3(1, 1, 1) : glm::vec3(0, 0, 0);
-	if (AI_SUCCESS != aiGetMaterialColor(pMat, AI_MATKEY_COLOR_EMISSIVE, (aiColor4D*)&m_emiss))
-		m_emiss = glm::vec3(0, 0, 0);
+	m_bShininess = AI_SUCCESS == aiGetMaterialFloatArray(pMat, AI_MATKEY_SHININESS, &m_shininess, &max);
+	m_bAmb = AI_SUCCESS == aiGetMaterialColor(pMat, AI_MATKEY_COLOR_AMBIENT, (aiColor4D*)&m_amb);
+	m_bDiff = AI_SUCCESS == aiGetMaterialColor(pMat, AI_MATKEY_COLOR_DIFFUSE, (aiColor4D*)&m_diff);
+	m_bSpec = aiGetMaterialColor(pMat, AI_MATKEY_COLOR_SPECULAR, (aiColor4D*)&m_spec);
+	m_bEmiss = AI_SUCCESS == aiGetMaterialColor(pMat, AI_MATKEY_COLOR_EMISSIVE, (aiColor4D*)&m_emiss);
 
 	// texture
 	if (pPath)
@@ -75,6 +69,7 @@ void C3dglMaterial::render(C3dglProgram *pProgram) const
 		unsigned idTex;
 		if (getTexture(texUnit, idTex))
 		{
+			glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*) & m_back_idTexture[texUnit - GL_TEXTURE0]);
 			glActiveTexture(texUnit);
 			glBindTexture(GL_TEXTURE_2D, idTex);
 		}
@@ -85,13 +80,43 @@ void C3dglMaterial::render(C3dglProgram *pProgram) const
 
 	if (pProgram)
 	{
+		if (getAmbient()) pProgram->retrieveUniform(UNI_MAT_AMBIENT, m_back_amb);
+		if (getDiffuse()) pProgram->retrieveUniform(UNI_MAT_DIFFUSE, m_back_diff);
+		if (getSpecular()) pProgram->retrieveUniform(UNI_MAT_SPECULAR, m_back_spec);
+		if (getEmissive()) pProgram->retrieveUniform(UNI_MAT_EMISSIVE, m_back_emiss);
+		if (getShininess()) pProgram->retrieveUniform(UNI_MAT_SHININESS, m_back_shininess);
+
 		glm::vec3 vec;
 		if (getAmbient(vec)) pProgram->sendUniform(UNI_MAT_AMBIENT, vec);
 		if (getDiffuse(vec)) pProgram->sendUniform(UNI_MAT_DIFFUSE, vec);
 		if (getSpecular(vec)) pProgram->sendUniform(UNI_MAT_SPECULAR, vec);
 		if (getEmissive(vec)) pProgram->sendUniform(UNI_MAT_EMISSIVE, vec);
 		float v;
-		if (getShininess(v)) pProgram->sendUniform(UNI_MAT_SHININESS, vec);
+		if (getShininess(v)) pProgram->sendUniform(UNI_MAT_SHININESS, v);
+	}
+}
+
+void C3dglMaterial::postRender(C3dglProgram* pProgram) const
+{
+	for (unsigned texUnit = GL_TEXTURE0; texUnit <= GL_TEXTURE31; texUnit++)
+	{
+		if (getTexture(texUnit))
+		{
+			glActiveTexture(texUnit);
+			glBindTexture(GL_TEXTURE_2D, m_back_idTexture[texUnit - GL_TEXTURE0]);
+		}
+	}
+
+	if (!pProgram)
+		pProgram = C3dglProgram::getCurrentProgram();
+
+	if (pProgram)
+	{
+		if (getAmbient()) pProgram->sendUniform(UNI_MAT_AMBIENT, m_back_amb);
+		if (getDiffuse()) pProgram->sendUniform(UNI_MAT_DIFFUSE, m_back_diff);
+		if (getSpecular()) pProgram->sendUniform(UNI_MAT_SPECULAR, m_back_spec);
+		if (getEmissive()) pProgram->sendUniform(UNI_MAT_EMISSIVE, m_back_emiss);
+		if (getShininess()) pProgram->sendUniform(UNI_MAT_SHININESS, m_back_shininess);
 	}
 }
 

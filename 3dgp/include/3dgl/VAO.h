@@ -39,6 +39,9 @@ freely, subject to the following restrictions:
 #include "Object.h"
 #include "CommonDef.h"
 
+// standard libraries
+#include <map>
+
 namespace _3dgl
 {
 	class C3dglProgram;
@@ -51,14 +54,15 @@ namespace _3dgl
 		// Attribute Buffers (VBO)
 		size_t m_attrCount;			// number of different vertex attributes (or: buffer number)
 		size_t m_nVertices = 0;		// number of vertices
-		GLuint* m_idVBO;			// buffer id's (one buffer per vertex attribute)
+
+#pragma warning(push)
+#pragma warning(disable: 4251)
+		std::map<GLint, GLuint> m_mapBuffers;	// maps attrib id to id buffer id
+#pragma warning(pop)
 
 		// Index Buffer
 		size_t m_nIndices = 0;		// number of elements to draw (size of index buffer)
 		GLuint m_idIndex = 0;		// index buffer id
-
-		// Instancing values
-		size_t m_instances = 1;
 
 		// rendering-related data
 		C3dglProgram* m_pProgram = NULL;					// program responsible for creating the VBO's and VAO; NULL if fixed pipeline or no VAO created
@@ -66,7 +70,6 @@ namespace _3dgl
 
 	public:
 		C3dglVertexAttrObject(size_t attrCount);
-		C3dglVertexAttrObject(const C3dglVertexAttrObject&);		// copy constructor
 		virtual ~C3dglVertexAttrObject();
 
 		size_t getAttrCount() const						{ return m_attrCount; }
@@ -74,26 +77,29 @@ namespace _3dgl
 		GLuint getVAOid() const							{ return m_idVAO; }
 
 		size_t getVertexCount() const					{ return m_nVertices; }
-		GLuint getVertexBufferId(size_t attr) const		{ return m_idVBO[attr]; }
+		bool getVertexBufferId(GLint attrLocation, GLuint& bufferId) const;
 
 		size_t getIndexCount() const					{ return m_nIndices; }
 		GLuint getIndexBufferId() const					{ return m_idIndex; }
 
-		// The most generic create function
+		// The create & destroy all standard buffers. The latter, typically, doesn't need to be called
 		void create(size_t attrCount, size_t nVertices, void** attrData, size_t* attrSize, size_t nIndices, void* indexData, size_t indSize, C3dglProgram* pProgram = NULL);
-
-		// Render
-		void render(glm::mat4 matrix, C3dglProgram* pProgram = NULL) const;
-		virtual void render() const;
-
-		// Delete all buffer data - typically doesn't need to be called
 		virtual void destroy();
 
-		// Enable instancing by providing instanced data buffer (usually positionsl "offset" data)
-		GLuint setupInstancingData(GLint attrLocation, size_t instances, GLint size, GLenum type, GLsizei stride, void* data, GLuint divisor = 1, GLenum usage = GL_STATIC_DRAW);
-		void addInstancingData(GLint attrLocation, GLuint bufferId, GLint size, GLenum type, GLsizei stride, size_t offset, GLuint divisor = 1);
-		void destroyInstancingData(GLuint bufferId);
-		size_t getInstancesCount() const				{ return m_instances; }
+		// Buffer creation and destroying
+		GLuint createVertexBuffer(GLint attrLocation, size_t instances, GLint size, float* data, GLsizei stride = 0, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+		GLuint createVertexBuffer(GLint attrLocation, size_t instances, GLint size, int* data, GLsizei stride = 0, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+		GLuint createVertexBuffer(GLenum cap, size_t instances, float* data, GLsizei stride, GLenum usage = GL_STATIC_DRAW);
+
+		void addAttribPointer(GLint attrLocation, GLuint bufferId, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+		void addAttribIPointer(GLint attrLocation, GLuint bufferId, size_t instances, GLint size, GLsizei stride, size_t offset, GLuint divisor = 0, GLenum usage = GL_STATIC_DRAW);
+
+
+		void destroyVertexBuffer(GLint attrLocation);
+
+		// Rendering
+		void render(glm::mat4 matrix, GLsizei instances = 1, C3dglProgram* pProgram = NULL) const;
+		virtual void render(GLsizei instances = 1) const;
 
 		using C3dglObject::getName;
 	};

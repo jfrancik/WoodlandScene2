@@ -3,8 +3,8 @@
 Version 3.0 - June 2022
 Copyright (C) 2013-22 by Jarek Francik, Kingston University, London, UK
 *********************************************************************************/
+#include "pch.h"
 #include <fstream>
-#include <GL/glew.h>
 #include <3dgl/Animation.h>
 #include <3dgl/Model.h>
 

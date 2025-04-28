@@ -85,6 +85,29 @@ namespace _3dgl
 			GLenum datatype;	// index to an internal data structure (c_uniTypes)
 		};
 
+		struct MY3DGL_API UNIFORM_VALUE
+		{
+			GLenum datatype;	// uniform type (GL_FLOAT, GL_INT, GL_UNSIGNED_INT, GL_FLOAT_VEC2 and so on)
+			union				// unform value (ONE of the values listed below)
+			{
+				GLfloat val_FLOAT;
+				GLint val_INT;
+				GLuint val_UNSIGNED_INT;
+				glm::vec2 val_FLOAT_VEC2;
+				glm::vec3 val_FLOAT_VEC3;
+				glm::vec4 val_FLOAT_VEC4;
+				glm::ivec2 val_INT_VEC2;
+				glm::ivec3 val_INT_VEC3;
+				glm::ivec4 val_INT_VEC4;
+				glm::uvec2 val_UNSIGNED_INT_VEC2;
+				glm::uvec3 val_UNSIGNED_INT_VEC3;
+				glm::uvec4 val_UNSIGNED_INT_VEC4;
+				glm::mat2 val_FLOAT_MAT2;
+				glm::mat3 val_FLOAT_MAT3;
+				glm::mat4 val_FLOAT_MAT4;
+			};
+		};
+
 		GLuint m_id;		// Program id
 
 		// Maps of Shader Objects
@@ -92,10 +115,11 @@ namespace _3dgl
 #pragma warning(disable: 4251)
 		mutable std::map<std::string, GLint> m_attribs;			// map of attributes: name => attribute locaion 
 		mutable std::map<std::string, UNIFORM> m_uniforms;		// map of uniforms: name => uniform location
+		mutable std::map<GLint, UNIFORM_VALUE> m_values;		// map of uniform value: location => value
 #pragma warning(pop)
 
 		size_t m_stdAttrNum = ATTR_COUNT;				// number of standard attributes (8)
-		GLint m_stdAttr[ATTR_COUNT];						// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
+		GLint m_stdAttr[ATTR_COUNT];					// array of standard attribute locations (see enum ATTRIB_STD in CommonDef.h)
 		GLint m_stdUni[UNI_COUNT];						// array of standard uniform locations (see enum UNI_STD in CommonDef.h)
 
 	public:
@@ -121,9 +145,11 @@ namespace _3dgl
 
 		// numerical locations and types for attribute and uniform names
 		GLint getUniformLocation(std::string idUniform) const;
+		GLint getUniformLocation(std::string idUniform, size_t index) const;
 		GLint getUniformLocation(UNI_STD uniId) const;
 
-		void getUniformLocationAndType(std::string idUniform, GLint &location, GLenum &type) const;
+		void getUniformLocationAndType(std::string idUniform, GLint& location, GLenum& type) const;
+		void getUniformLocationAndType(std::string idUniform, size_t index, GLint& location, GLenum& type) const;
 
 		// Send Uniform functions
 
@@ -244,6 +270,81 @@ namespace _3dgl
 		bool sendUniform(enum UNI_STD stdloc, glm::mat2 v);
 		bool sendUniform(enum UNI_STD stdloc, glm::mat3 v);
 		bool sendUniform(enum UNI_STD stdloc, glm::mat4 v);
+
+		// Retrieveing uniforms
+		// NOTE: Uniform values cannot be read from GPU
+		// Instead they are intercepted internally when send with sendUniform functions
+		// Uniforms set in any other way, e.g. from within the GLSL code or by direct calls to glUniform* functions will not be properly retrieved
+
+		// single values
+		bool retrieveUniform(std::string name, GLfloat&);
+		bool retrieveUniform(std::string name, GLint&);
+		bool retrieveUniform(std::string name, GLuint&);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool retrieveUniform(std::string name, glm::vec2&);
+		bool retrieveUniform(std::string name, glm::vec3&);
+		bool retrieveUniform(std::string name, glm::vec4&);
+		bool retrieveUniform(std::string name, glm::ivec2&);
+		bool retrieveUniform(std::string name, glm::ivec3&);
+		bool retrieveUniform(std::string name, glm::ivec4&);
+		bool retrieveUniform(std::string name, glm::uvec2&);
+		bool retrieveUniform(std::string name, glm::uvec3&);
+		bool retrieveUniform(std::string name, glm::uvec4&);
+		// glm matrix
+		bool retrieveUniform(std::string name, glm::mat2&);
+		bool retrieveUniform(std::string name, glm::mat3&);
+		bool retrieveUniform(std::string name, glm::mat4&);
+
+		// Sending uniforms using location ids
+		// Usage: sendUniform(location-code, value);
+		// single values
+		bool retrieveUniform(GLint location, GLfloat&);
+		bool retrieveUniform(GLint location, GLint&);
+		bool retrieveUniform(GLint location, GLuint&);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool retrieveUniform(GLint location, glm::vec2&);
+		bool retrieveUniform(GLint location, glm::vec3&);
+		bool retrieveUniform(GLint location, glm::vec4&);
+		bool retrieveUniform(GLint location, glm::ivec2&);
+		bool retrieveUniform(GLint location, glm::ivec3&);
+		bool retrieveUniform(GLint location, glm::ivec4&);
+		bool retrieveUniform(GLint location, glm::uvec2&);
+		bool retrieveUniform(GLint location, glm::uvec3&);
+		bool retrieveUniform(GLint location, glm::uvec4&);
+		// glm matrix
+		bool retrieveUniform(GLint location, glm::mat2&);
+		bool retrieveUniform(GLint location, glm::mat3&);
+		bool retrieveUniform(GLint location, glm::mat4&);
+
+		// Sending array items using location names and index
+		// Usage: sendUniform("location-name", index, value);
+		// single values
+		bool retrieveUniform(std::string name, size_t index, GLfloat&);
+		bool retrieveUniform(std::string name, size_t index, GLint&);
+		bool retrieveUniform(std::string name, size_t index, GLuint&);
+		// glm vectors: vec, bvec, ivec, uvec x 2, 3, 4
+		bool retrieveUniform(std::string name, size_t index, glm::vec2&);
+		bool retrieveUniform(std::string name, size_t index, glm::vec3&);
+		bool retrieveUniform(std::string name, size_t index, glm::vec4&);
+		bool retrieveUniform(std::string name, size_t index, glm::ivec2&);
+		bool retrieveUniform(std::string name, size_t index, glm::ivec3&);
+		bool retrieveUniform(std::string name, size_t index, glm::ivec4&);
+		bool retrieveUniform(std::string name, size_t index, glm::uvec2&);
+		bool retrieveUniform(std::string name, size_t index, glm::uvec3&);
+		bool retrieveUniform(std::string name, size_t index, glm::uvec4&);
+		// glm matrix
+		bool retrieveUniform(std::string name, size_t index, glm::mat2&);
+		bool retrieveUniform(std::string name, size_t index, glm::mat3&);
+		bool retrieveUniform(std::string name, size_t index, glm::mat4&);
+
+		// send a standard uniform using one of the UNI_STD values
+		bool retrieveUniform(enum UNI_STD stdloc, GLfloat&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::vec2&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::vec3&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::vec4&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::mat2&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::mat3&);
+		bool retrieveUniform(enum UNI_STD stdloc, glm::mat4&);
 
 		std::string getName() const	{ return "GLSL Program"; }
 	

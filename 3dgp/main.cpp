@@ -102,7 +102,7 @@ bool init()
 	trees[1] = vec3(-5, terrain.getInterpolatedHeight(-5, -1), -1);
 	trees[2] = vec3(-4, terrain.getInterpolatedHeight(-4, -4), -4);
 
-	tree.setupInstancingData(program.getAttribLocation("aOffset"), TREES, 3, (float*)&trees[0]);
+	tree.createVertexBuffers(program.getAttribLocation("aOffset"), TREES, 3, (float*)&trees[0], 0, 1);
 
 	if (!skybox.load(
 		"models\\mountain\\mft.tga",
@@ -165,8 +165,9 @@ bool init()
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = lookAt(
 		vec3(-2.0, 1.0, 3.0),
-		vec3(-2.0, 0.5, 0.0),
+		vec3(-2.0, 1.0, 0.0),
 		vec3(0.0, 1.0, 0.0));
+	matrixView = rotate(matrixView, radians(12.f), vec3(1, 0, 0));
 
 	// setup the screen background colour
 	glClearColor(0.2f, 0.6f, 1.f, 1.0f);   // blue sky background
@@ -245,7 +246,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	program.sendUniform("instancing", true);
 	m = matrixView;
 	m = scale(m, vec3(0.01f, 0.01f, 0.01f));
-	tree.render(m);
+	tree.render(m, TREES);
 	program.sendUniform("bNormalMap", false);
 	program.sendUniform("instancing", false);
 }

@@ -38,29 +38,55 @@ freely, subject to the following restrictions:
 
 namespace _3dgl
 {
+	class C3dglMesh;
+	class C3dglProgram;
+
+
+
 	// pass the matrixView to get the current camera position
-	glm::vec3 getPos(glm::mat4 m)
+	inline glm::vec3 getPos(glm::mat4 m)
 	{
 		return glm::inverse(m)[3];
 	}
 
 	// pass the matrixView to get the current camera pitch
-	float getPitch(glm::mat4 m)
+	inline float getPitch(glm::mat4 m)
 	{
 		return atan2(m[1][2], sqrt(m[0][2] * m[0][2] + m[2][2] * m[2][2]));
 	}
 
 	// pass the matrixView to get the current camera yaw
-	float getYaw(glm::mat4 m)
+	inline float getYaw(glm::mat4 m)
 	{
 		return atan2(m[2][2], -m[0][2]);
 	}
 
 	// pass the matrixView to get the current camera roll
-	float getRoll(glm::mat4 m)
+	inline float getRoll(glm::mat4 m)
 	{
 		return atan2(m[1][0], sqrt(m[0][0] * m[0][0] + m[2][0] * m[2][0]));
 	}
+
+	// prints text on-screen at (x, y) screen coordinates, using color, font and align mode (left, right or centre)
+	// x: x coordinate; if x < 0 than |x| determines the distance from the right margin of the window. The text will be right-aligned regardless of the align setting
+	// y: y coordinate; if y < 0 than |y| determines the distance from the top margin of the window
+	// Examples: print(0, 0, "lower-left corner"); print(-1, -1, "upper-right corner"); 
+	//           print(640, -10, std::format("X = {}  Y = {}", X, Y), vec3(1.0f, 0.5f, 0.0f), FONT_FIXED_15, CENTRE);
+	enum FONT { FONT_FIXED_15, FONT_FIXED_13, FONT_TIMES_ROMAN_10, FONT_TIMES_ROMAN_24, FONT_HELVETICA_10, FONT_HELVETICA_12, FONT_HELVETICA_18 };
+	enum ALIGN { LEFT, RIGHT, CENTRE };
+	void MY3DGL_API print(int x, int y, std::string text, glm::vec3 color = glm::vec3(1, 1, 1), enum FONT = FONT_HELVETICA_18, enum ALIGN = LEFT);
+
+	// calculates fps from deltaTime (time since last frame) and displays it on-screen;
+	void MY3DGL_API print(int x, int y, float deltaTime, glm::vec3 color = glm::vec3(1, 1, 1), enum FONT = FONT_HELVETICA_18, enum ALIGN = LEFT);
+
+	// calculates camera position from the view matrix and displays it on-screen;
+	void MY3DGL_API print(int x, int y, glm::mat4 matrixView, glm::vec3 color = glm::vec3(1, 1, 1), enum FONT = FONT_HELVETICA_18, enum ALIGN = LEFT);
+
+	// converts a height map provided as an image file (fileImage) to a terrain mesh using scaleHeight to scale the terrain height
+	// output stored either externally as an OBJ mesh file or internally in a C3dglMesh mesh file provided
+	bool MY3DGL_API convHeightmap2OBJ(const std::string fileImage, float scaleHeight, const std::string fileOBJ);
+	bool MY3DGL_API convHeightmap2Mesh(const std::string fileImage, float scaleHeight, C3dglMesh* pMesh, C3dglProgram* pProgram = NULL);
+
 }; // namespace _3dgl
 
 #endif
